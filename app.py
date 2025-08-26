@@ -1,85 +1,95 @@
 import os
-from config import GOOGLE_API_KEY
-import csv
 import streamlit as st
-from pdf_handler import extract_text_from_pdfs
-from text_splitter import split_text
-from vector_store import create_vector_store
-from qa_chain import build_qa_chain
-from user_data import save_user_info
+from dotenv import load_dotenv
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from PyPDF2 import PdfReader
 
-# 1. config.py (API Key Setup)
+# -------------------------
+# Load API Key
+# -------------------------
+load_dotenv()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# 2. pdf_handler.py (PDF Reader)
+if not GOOGLE_API_KEY:
+    st.error("❌ GOOGLE_API_KEY not found. Please set it in .env file.")
+    st.stop()
 
-# 3. text_splitter.py (Text Chunking)
+# -------------------------
+# Embedding pakai HuggingFace
+# -------------------------
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# 4. vector_store.py (Embedding & FAISS)
+# -------------------------
+# Extract text dari file (PDF / TXT)
+# -------------------------
+def extract_text_from_file(uploaded_file):
+    text = ""
+    if uploaded_file.name.endswith(".txt"):
+        text = uploaded_file.read().decode("utf-8", errors="ignore")
 
-# 5. qa_chain.py (Prompt & Gemini Chain)
+    elif uploaded_file.name.endswith(".pdf"):
+        pdf_reader = PdfReader(uploaded_file)
+        for page in pdf_reader.pages:
+            text += page.extract_text() or ""
 
-# 6. user_data.py (Save User Info)
+    return text
 
-# 7. app.py (Streamlit Interface)
+# -------------------------
+# Create Vector Store dari banyak file
+# -------------------------
+def get_vector_store_from_files(uploaded_files):
+    all_text = ""
+    for file in uploaded_files:
+        extracted_text = extract_text_from_file(file)
+        all_text += extracted_text + "\n"
 
-st.set_page_config(page_title="Gemini PDF Chatbot", layout="wide")
+    if not all_text.strip():
+        return None
 
-def clear_chat():
-    st.session_state.messages = [{"role": "assistant", "content": "Upload PDFs and ask a question"}]
-    st.session_state.vector_store = None
+    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    chunks = splitter.split_text(all_text)
+    return FAISS.from_texts(chunks, embedding=embeddings)
 
+# -------------------------
+# Streamlit App
+# -------------------------
 def main():
-    st.sidebar.title("📁 Upload PDFs")
-    pdf_docs = st.sidebar.file_uploader("Upload PDF files", accept_multiple_files=True)
+    st.set_page_config(page_title="Gemini 2.5 Flash Multi-file Chatbot", page_icon="🤖")
+    st.title("🤖 Chatbot dengan Gemini 2.5 Flash (Multi-file Upload)")
 
-    if st.sidebar.button("Submit & Process"):
-        with st.spinner("Processing PDFs..."):
-            raw_text = extract_text_from_pdfs(pdf_docs)
-            chunks = split_text(raw_text)
-            vector_store = create_vector_store(chunks)
-            st.session_state.vector_store = vector_store
-            st.success("PDFs processed and indexed!")
+    # Upload multiple files
+    uploaded_files = st.file_uploader("Upload PDF atau TXT (boleh lebih dari 1 file)", type=["txt", "pdf"], accept_multiple_files=True)
+    vector_store = None
 
-    st.sidebar.button("🧹 Clear Chat", on_click=clear_chat)
+    if uploaded_files:
+        with st.spinner("📂 Memproses semua file..."):
+            vector_store = get_vector_store_from_files(uploaded_files)
+            if vector_store:
+                st.success(f"✅ {len(uploaded_files)} file berhasil diproses dan dimasukkan ke Vector Store!")
+            else:
+                st.warning("⚠️ Tidak ada teks yang bisa diekstrak dari file.")
 
-    st.title("💬 Chat with Your PDFs using Gemini 2.5 Flash")
-    if "messages" not in st.session_state:
-        clear_chat()
+    # Input user
+    user_input = st.text_input("Masukkan pertanyaan:")
+    if st.button("Kirim") and user_input:
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
 
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+        if vector_store:
+            docs = vector_store.similarity_search(user_input, k=3)
+            context = "\n".join([d.page_content for d in docs])
+            prompt = f"Gunakan konteks berikut untuk menjawab:\n\n{context}\n\nPertanyaan: {user_input}"
+        else:
+            prompt = user_input
 
-    if prompt := st.chat_input("Ask a question"):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        if st.session_state.vector_store is None:
-            st.warning("Please upload and process PDFs first.")
-            return
-
-        docs = st.session_state.vector_store.similarity_search(prompt)
-        context = "\n".join([doc.page_content for doc in docs])
-        chain = build_qa_chain()
-        response = chain({"input_documents": docs, "context": context, "question": prompt}, return_only_outputs=True)
-
-        st.session_state.messages.append({"role": "assistant", "content": response["output_text"]})
-        with st.chat_message("assistant"):
-            st.markdown(response["output_text"])
-
-        if "call me" in prompt.lower():
-            st.subheader("📇 Contact Form")
-            with st.form("contact_form"):
-                name = st.text_input("Name")
-                phone = st.text_input("Phone")
-                email = st.text_input("Email")
-                if st.form_submit_button("Submit"):
-                    save_user_info(name, phone, email)
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": f"Thanks {name}, we’ll contact you at {phone} or {email}."
-                    })
+        try:
+            response = llm.invoke(prompt)
+            st.write("### 💬 Jawaban AI:")
+            st.write(response.content)
+        except Exception as e:
+            st.error(f"❌ Error dari Gemini: {e}")
 
 if __name__ == "__main__":
     main()
