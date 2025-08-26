@@ -1,68 +1,227 @@
+# app.py
+import os
+from io import BytesIO
 import streamlit as st
-from utils.pdf_handler import extract_text_from_pdfs
-from utils.text_splitter import split_text
-from utils.vector_store import create_vector_store
-from utils.qa_chain import build_qa_chain
-from utils.user_data import save_user_info
+from dotenv import load_dotenv
+from typing import List
 
-st.set_page_config(page_title="Chatbot Properti Gading Serpong", layout="wide")
+# File parsing
+from PyPDF2 import PdfReader
+from docx import Document as DocxDocument
+from pptx import Presentation as PptxPresentation
 
-def clear_chat():
-    st.session_state.messages = [{"role": "assistant", "content": "Silakan upload brosur properti dan ajukan pertanyaan"}]
+# LangChain / VectorStore / Embeddings / LLM
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.schema import Document
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+# -------------------------
+# Config / env
+# -------------------------
+load_dotenv()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+st.set_page_config(page_title="Gemini Multi-file Chatbot (FAISS)", page_icon="🤖", layout="wide")
+
+if not GOOGLE_API_KEY:
+    st.error("❌ GOOGLE_API_KEY tidak ditemukan. Tambahkan ke file .env sebelum menjalankan.")
+    st.stop()
+
+# Embeddings (HuggingFace yang stabil di Streamlit Cloud)
+EMBEDDINGS = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+# Text splitter
+SPLITTER = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
+
+# -------------------------
+# File extractors
+# -------------------------
+def extract_text_from_pdf(file_bytes: BytesIO) -> str:
+    text = ""
+    try:
+        reader = PdfReader(file_bytes)
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+    except Exception as e:
+        st.warning(f"⚠️ Gagal ekstrak PDF: {e}")
+    return text
+
+def extract_text_from_txt(file_bytes: BytesIO) -> str:
+    try:
+        return file_bytes.read().decode("utf-8", errors="ignore")
+    except Exception as e:
+        st.warning(f"⚠️ Gagal baca TXT: {e}")
+        return ""
+
+def extract_text_from_docx(file_bytes: BytesIO) -> str:
+    text = ""
+    try:
+        # python-docx requires a file-like object that supports seek/read
+        file_bytes.seek(0)
+        doc = DocxDocument(file_bytes)
+        for p in doc.paragraphs:
+            if p.text:
+                text += p.text + "\n"
+    except Exception as e:
+        st.warning(f"⚠️ Gagal ekstrak DOCX: {e}")
+    return text
+
+def extract_text_from_pptx(file_bytes: BytesIO) -> str:
+    text = ""
+    try:
+        file_bytes.seek(0)
+        prs = PptxPresentation(file_bytes)
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if hasattr(shape, "text") and shape.text:
+                    text += shape.text + "\n"
+    except Exception as e:
+        st.warning(f"⚠️ Gagal ekstrak PPTX: {e}")
+    return text
+
+# Best-effort generic extractor
+def extract_text_from_file(uploaded_file) -> str:
+    name = uploaded_file.name.lower()
+    # Use BytesIO wrapper so we can call multiple extractors safely
+    raw = uploaded_file.read()
+    bio = BytesIO(raw)
+
+    if name.endswith(".pdf"):
+        return extract_text_from_pdf(bio)
+    elif name.endswith(".txt"):
+        return extract_text_from_txt(BytesIO(raw))
+    elif name.endswith(".docx"):
+        return extract_text_from_docx(BytesIO(raw))
+    elif name.endswith(".pptx"):
+        return extract_text_from_pptx(BytesIO(raw))
+    elif name.endswith(".doc") or name.endswith(".ppt"):
+        # Legacy binary formats — often fail without external converters.
+        st.warning(f"⚠️ File `{uploaded_file.name}` berformat lama (.doc/.ppt). Silakan konversi ke .docx/.pptx untuk ekstraksi teks yang lebih baik.")
+        return ""
+    else:
+        st.warning(f"⚠️ Tipe file `{uploaded_file.name}` tidak didukung.")
+        return ""
+
+# -------------------------
+# Build documents & FAISS
+# -------------------------
+def build_documents_from_uploads(uploaded_files) -> List[Document]:
+    docs: List[Document] = []
+    for f in uploaded_files:
+        text = extract_text_from_file(f)
+        if not text or not text.strip():
+            continue
+        chunks = SPLITTER.split_text(text)
+        for i, chunk in enumerate(chunks):
+            docs.append(Document(page_content=chunk, metadata={"source_file": f.name, "chunk_id": i}))
+    return docs
+
+def build_faiss_from_documents(docs: List[Document]) -> FAISS | None:
+    if not docs:
+        return None
+    vs = FAISS.from_documents(docs, embedding=EMBEDDINGS)
+    return vs
+
+# -------------------------
+# Prompt formatting helpers
+# -------------------------
+def format_context(snippets: List[Document]) -> str:
+    parts = []
+    for idx, d in enumerate(snippets, start=1):
+        src = d.metadata.get("source_file", "unknown")
+        cid = d.metadata.get("chunk_id", "-")
+        parts.append(f"[{idx}] ({src}#chunk-{cid})\n{d.page_content}")
+    return "\n\n---\n\n".join(parts)
+
+def render_sources(snippets: List[Document]):
+    with st.expander("🔎 Sumber konteks yang dipakai"):
+        for i, d in enumerate(snippets, start=1):
+            src = d.metadata.get("source_file", "unknown")
+            cid = d.metadata.get("chunk_id", "-")
+            preview = d.page_content[:300].replace("\n", " ")
+            st.markdown(f"**[{i}]** **{src}** (chunk {cid})")
+            st.caption(preview + ("..." if len(d.page_content) > 300 else ""))
+
+# -------------------------
+# Streamlit UI
+# -------------------------
+st.title("🤖 Gemini 2.5 Flash Chatbot — Multi-file (PDF/TXT/DOCX/PPTX) + FAISS")
+st.write("Upload banyak file (PDF, TXT, DOCX, PPTX). Untuk .doc/.ppt (format lama), silakan convert ke .docx/.pptx jika ekstraksi kosong.")
+
+# Sidebar: upload + actions
+st.sidebar.header("📂 Upload & Build")
+uploaded_files = st.sidebar.file_uploader("Upload files (pdf, txt, docx, pptx) — boleh banyak", type=["pdf", "txt", "docx", "pptx"], accept_multiple_files=True)
+build_btn = st.sidebar.button("🚀 Build Vector Store")
+clear_btn = st.sidebar.button("🧹 Reset vector store")
+
+if "vector_store" not in st.session_state:
     st.session_state.vector_store = None
+if "indexed_files" not in st.session_state:
+    st.session_state.indexed_files = []
 
-def main():
-    st.sidebar.title("📁 Upload Brosur Properti")
-    pdf_docs = st.sidebar.file_uploader("Upload file PDF", accept_multiple_files=True)
+if clear_btn:
+    st.session_state.vector_store = None
+    st.session_state.indexed_files = []
+    st.success("Vector store di-reset.")
 
-    if st.sidebar.button("Proses Brosur"):
-        with st.spinner("Memproses dokumen..."):
-            raw_text = extract_text_from_pdfs(pdf_docs)
-            chunks = split_text(raw_text)
-            vector_store = create_vector_store(chunks)
-            st.session_state.vector_store = vector_store
-            st.success("Brosur berhasil diproses!")
+if build_btn:
+    if not uploaded_files:
+        st.sidebar.warning("Silakan upload minimal 1 file terlebih dahulu.")
+    else:
+        with st.spinner("📦 Memproses file dan membuat vector store..."):
+            docs = build_documents_from_uploads(uploaded_files)
+            if not docs:
+                st.sidebar.error("Tidak ada teks valid yang berhasil diekstrak. Periksa file atau konversi ke docx/pptx.")
+            else:
+                vs = build_faiss_from_documents(docs)
+                st.session_state.vector_store = vs
+                st.session_state.indexed_files = [f.name for f in uploaded_files]
+                st.sidebar.success(f"Vector store terbangun. Dokumen terindeks: {len(st.session_state.indexed_files)} | Chunk total: {len(docs)}")
 
-    st.sidebar.button("🧹 Hapus Riwayat Chat", on_click=clear_chat)
+# Show indexed files
+if st.session_state.indexed_files:
+    st.markdown("**Dokumen terindeks:**")
+    st.write(" • " + "\n • ".join(st.session_state.indexed_files))
 
-    st.title("💬 Chatbot Properti Gading Serpong")
-    if "messages" not in st.session_state:
-        clear_chat()
+# Query area
+prompt = st.text_input("Tanyakan sesuatu berdasarkan dokumen yang diupload:", placeholder="Misal: Ringkas dokumen tentang topik X...")
+ask_btn = st.button("Tanyakan")
 
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+if ask_btn:
+    if not prompt or not prompt.strip():
+        st.warning("Masukkan pertanyaan terlebih dahulu.")
+    elif st.session_state.vector_store is None:
+        st.info("Belum ada vector store. Upload file dan klik 'Build Vector Store' di sidebar.")
+    else:
+        with st.spinner("🔎 Mengambil konteks dari vector store..."):
+            results = st.session_state.vector_store.similarity_search(prompt, k=5)
 
-    if prompt := st.chat_input("Ajukan pertanyaan..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+        context_text = format_context(results)
+        system_instructions = (
+            "Jawablah pertanyaan pengguna seakurat mungkin dengan mengacu pada konteks di bawah. "
+            "Jika jawaban tidak terdapat pada konteks, katakan: \"Jawaban tidak tersedia dalam konteks yang diberikan.\" "
+            "Berikan referensi [angka] ke potongan konteks bila relevan."
+        )
 
-        if st.session_state.vector_store is None:
-            st.warning("Silakan upload dan proses brosur terlebih dahulu.")
-            return
+        composed_prompt = (
+            f"{system_instructions}\n\n"
+            f"=== KONTEX ===\n{context_text}\n\n"
+            f"=== PERTANYAAN ===\n{prompt}\n\n"
+            f"=== JAWABAN ==="
+        )
 
-        docs = st.session_state.vector_store.similarity_search(prompt)
-        context = "\n".join([doc.page_content for doc in docs])
-        chain = build_qa_chain()
-        response = chain({"input_documents": docs, "context": context, "question": prompt}, return_only_outputs=True)
-
-        st.session_state.messages.append({"role": "assistant", "content": response["output_text"]})
-        with st.chat_message("assistant"):
-            st.markdown(response["output_text"])
-
-        if "call me" in prompt.lower():
-            st.subheader("📇 Form Kontak")
-            with st.form("contact_form"):
-                name = st.text_input("Nama")
-                phone = st.text_input("No. Telepon")
-                email = st.text_input("Email")
-                if st.form_submit_button("Kirim"):
-                    save_user_info(name, phone, email)
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": f"Terima kasih {name}, kami akan menghubungi Anda di {phone} atau {email}."
-                    })
-
-if __name__ == "__main__":
-    main()
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
+        try:
+            with st.spinner("🤖 Gemini sedang menjawab..."):
+                response = llm.invoke(composed_prompt)
+            st.subheader("💬 Jawaban")
+            # response may have .content or .candidates - use .content when available
+            out_text = getattr(response, "content", None) or (response.candidates[0].content if getattr(response, "candidates", None) else str(response))
+            st.write(out_text)
+            render_sources(results)
+        except Exception as e:
+            st.error(f"❌ Error saat memanggil Gemini: {e}")
