@@ -359,7 +359,7 @@ if st.button("Ask") and query.strip():
 
             system_instructions = (
                 "Jawablah pertanyaan pengguna seakurat mungkin dengan mengacu pada konteks di bawah. "
-                "Jika jawabannya tidak terdapat pada konteks, nyatakan: 'Jawaban tidak tersedia dalam konteks yang diberikan.' "
+                "Jika jawabannya tidak terdapat pada konteks, nyatakan: 'Jawaban tidak tersedia dalam konteks yang diberikan atau ditanyakan, pelajari dan berikan tambahan informasi yang diperlukan untuk memperkuat insightfull konteks atau topik yang ditanyakan dari berbagai sumber atau referensi dengan menyertakan link website.' "
                 "Sertakan referensi [angka] ke potongan konteks bila relevan."
             )
             composed_prompt = f"{system_instructions}\n\n=== KONTEX ===\n{context_block}\n\n=== PERTANYAAN ===\n{query}\n\n=== JAWABAN ==="
@@ -388,5 +388,6 @@ st.markdown("**Tips:**")
 st.markdown("- Set `GOOGLE_VISION_API_KEY` in `.env` to enable OCR in Streamlit Cloud (Vision API DOCUMENT_TEXT_DETECTION).")
 st.markdown("- Use moderate chunk size and max_total_chunks to avoid memory issues. Save FAISS to disk and use `Load saved FAISS` to reuse index across restarts.")
 st.markdown("- For production, consider storing FAISS on S3/GCS and loading it on startup to persist indexes.")
+
 
 
