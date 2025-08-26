@@ -1,5 +1,4 @@
 # app.py
-# app.py
 import os
 import json
 from io import BytesIO
@@ -389,3 +388,4 @@ st.markdown("**Tips:**")
 st.markdown("- Set `GOOGLE_VISION_API_KEY` in `.env` to enable OCR in Streamlit Cloud (Vision API DOCUMENT_TEXT_DETECTION).")
 st.markdown("- Use moderate chunk size and max_total_chunks to avoid memory issues. Save FAISS to disk and use `Load saved FAISS` to reuse index across restarts.")
 st.markdown("- For production, consider storing FAISS on S3/GCS and loading it on startup to persist indexes.")
+
