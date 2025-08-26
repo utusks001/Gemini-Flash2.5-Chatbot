@@ -11,7 +11,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 # -------------------------
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
+print("API Key:", os.getenv("GOOGLE_API_KEY"))
 if not GOOGLE_API_KEY:
     st.error("❌ GOOGLE_API_KEY not found. Please set it in .env file.")
     st.stop()
