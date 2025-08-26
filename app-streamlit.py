@@ -10,6 +10,10 @@ from dotenv import load_dotenv
 import csv
 
 # Load environment
+#load_dotenv()
+#os.environ["GOOGLE_API_KEY"] = "AIzaSyDja-EvridYPmwLkxqYx9DD6Tkv4WAfbJk"
+
+# Load environment
 load_dotenv()
 os.environ["GOOGLE_API_KEY"] = "AIzaSyDja-EvridYPmwLkxqYx9DD6Tkv4WAfbJk"
 
