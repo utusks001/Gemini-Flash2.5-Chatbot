@@ -2,6 +2,8 @@
 
 https://gemini-flash25-chatbot-uploadpdfs-and-asking.streamlit.app/
 
+https://gemini-flash25-chatbot-uploadpdf.streamlit.app/
+
 # 💬 Gemini PDF Chatbot
 
 Chatbot berbasis [Gemini 2.5 Flash](https://makersuite.google.com/) yang memungkinkan pengguna mengunggah file PDF dan mengajukan pertanyaan berdasarkan isi dokumen. Cocok untuk aplikasi seperti asisten pemasaran properti, analisis dokumen hukum, atau edukasi interaktif.
