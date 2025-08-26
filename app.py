@@ -1,70 +1,121 @@
 # app.py
+# app.py
 import os
+import json
 from io import BytesIO
 from typing import List
+import base64
+import time
 
 import streamlit as st
 from dotenv import load_dotenv
-
-# File parsing
+import requests
+from PIL import Image
 from PyPDF2 import PdfReader
 from docx import Document as DocxDocument
 from pptx import Presentation as PptxPresentation
-from PIL import Image
-import fitz  # PyMuPDF
+import fitz  # pymupdf
 
-# LangChain / VectorStore / Embeddings / LLM
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-# Optional OCR (pytesseract). Works only if tesseract binary installed.
+# Optional pytesseract
 try:
     import pytesseract
     TESSERACT_AVAILABLE = True
 except Exception:
     TESSERACT_AVAILABLE = False
 
-# -------------------------
-# Config
-# -------------------------
+# Load env
 load_dotenv()
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-st.set_page_config(page_title="Gemini Multi-file Chatbot (with images & OCR)", page_icon="🤖", layout="wide")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")  # for Gemini (if used)
+GOOGLE_VISION_API_KEY = os.getenv("GOOGLE_VISION_API_KEY")  # for Vision OCR
 
+st.set_page_config(page_title="Gemini Multi-file Chatbot + Vision OCR + FAISS", page_icon="🤖", layout="wide")
+
+# Basic checks
 if not GOOGLE_API_KEY:
-    st.error("❌ GOOGLE_API_KEY tidak ditemukan. Tambahkan di .env dulu.")
-    st.stop()
+    st.warning("GOOGLE_API_KEY not set. Gemini calls will fail unless provided. You can still build index + use embeddings locally.")
+if not GOOGLE_VISION_API_KEY:
+    st.info("GOOGLE_VISION_API_KEY not set. Image OCR will try local pytesseract if available; otherwise images won't be OCR'd. To enable OCR in Streamlit Cloud, set GOOGLE_VISION_API_KEY in .env.")
 
-# Embeddings and splitter
+# Embeddings & splitter default
+DEFAULT_CHUNK_SIZE = 800
+DEFAULT_CHUNK_OVERLAP = 120
 EMBEDDINGS = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-SPLITTER = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
 
-# -------------------------
-# OCR helper (best-effort)
-# -------------------------
-def ocr_image_pytesseract(pil_image: Image.Image) -> str:
-    """Gunakan pytesseract jika tersedia."""
+# Session keys
+if "vector_store" not in st.session_state:
+    st.session_state.vector_store = None
+if "indexed_files" not in st.session_state:
+    st.session_state.indexed_files = []
+if "total_chunks" not in st.session_state:
+    st.session_state.total_chunks = 0
+if "faiss_path" not in st.session_state:
+    st.session_state.faiss_path = "faiss_index"  # default local dir
+
+# ---------- Helpers: OCR via Google Vision REST ----------
+VISION_ENDPOINT = "https://vision.googleapis.com/v1/images:annotate"
+
+def ocr_image_with_google_vision(image_bytes: bytes, api_key: str) -> str:
+    """
+    Call Google Vision API (DOCUMENT_TEXT_DETECTION) via REST.
+    Returns extracted text (string).
+    """
+    img_base64 = base64.b64encode(image_bytes).decode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    body = {
+        "requests": [
+            {
+                "image": {"content": img_base64},
+                "features": [{"type": "DOCUMENT_TEXT_DETECTION", "maxResults": 1}],
+                "imageContext": {}
+            }
+        ]
+    }
+    params = {"key": api_key}
+    try:
+        resp = requests.post(VISION_ENDPOINT, params=params, headers=headers, data=json.dumps(body), timeout=60)
+        resp.raise_for_status()
+        res_json = resp.json()
+        text = ""
+        # Navigate JSON
+        try:
+            text = res_json["responses"][0].get("fullTextAnnotation", {}).get("text", "") or ""
+        except Exception:
+            text = ""
+        return text
+    except Exception as e:
+        st.warning(f"Google Vision OCR failed: {e}")
+        return ""
+
+def ocr_image_with_pytesseract(image_bytes: bytes) -> str:
     if not TESSERACT_AVAILABLE:
         return ""
     try:
-        text = pytesseract.image_to_string(pil_image, lang='eng')  # optional: change lang
-        return text
+        pil = Image.open(BytesIO(image_bytes)).convert("RGB")
+        return pytesseract.image_to_string(pil)
     except Exception:
         return ""
 
-# NOTE: If you want to use Google Vision API instead of pytesseract,
-# implement a function ocr_image_with_google_vision(image_bytes) here.
+def ocr_image_best_effort(image_bytes: bytes) -> str:
+    # prefer Vision API if key present
+    if GOOGLE_VISION_API_KEY:
+        txt = ocr_image_with_google_vision(image_bytes, GOOGLE_VISION_API_KEY)
+        if txt and txt.strip():
+            return txt
+    # fallback to local tesseract if available
+    if TESSERACT_AVAILABLE:
+        return ocr_image_with_pytesseract(image_bytes)
+    return ""
 
-# -------------------------
-# Extractors per filetype
-# -------------------------
-def extract_text_from_pdf_bytes(raw_bytes: bytes) -> str:
-    """1) Try extract text via PyPDF2. 2) If no text, render pages via PyMuPDF + OCR (if available)."""
+# ---------- File text extractors ----------
+def extract_text_from_pdf_bytes(raw_bytes: bytes, use_ocr: bool = True) -> str:
     text = ""
-    # Try PyPDF2 text extraction
+    # 1. Try PyPDF2 text extraction
     try:
         reader = PdfReader(BytesIO(raw_bytes))
         for page in reader.pages:
@@ -74,18 +125,17 @@ def extract_text_from_pdf_bytes(raw_bytes: bytes) -> str:
     except Exception:
         pass
 
-    # If no text found and OCR is available, render pages and OCR them
-    if (not text.strip()) and TESSERACT_AVAILABLE:
+    # 2. If empty and use_ocr True -> render pages via PyMuPDF and OCR pages
+    if (not text.strip()) and use_ocr:
         try:
             doc = fitz.open(stream=raw_bytes, filetype="pdf")
             for page in doc:
                 pix = page.get_pixmap(dpi=150)
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                ocr_text = ocr_image_pytesseract(img)
+                img_bytes = pix.tobytes()
+                ocr_text = ocr_image_best_effort(img_bytes)
                 if ocr_text:
                     text += ocr_text + "\n"
         except Exception:
-            # best-effort: ignore if rendering fails
             pass
     return text
 
@@ -101,24 +151,28 @@ def extract_text_from_docx_bytes(raw_bytes: bytes) -> str:
         pass
     return text
 
-def extract_text_from_pptx_bytes(raw_bytes: bytes) -> str:
+def extract_text_from_pptx_bytes(raw_bytes: bytes, use_ocr: bool = True) -> str:
     text = ""
     try:
         bio = BytesIO(raw_bytes)
         prs = PptxPresentation(bio)
-        # Extract textual content
         for slide in prs.slides:
             for shape in slide.shapes:
                 if hasattr(shape, "text") and shape.text:
                     text += shape.text + "\n"
-        # Also attempt to extract images from slides and OCR them if available
-        if TESSERACT_AVAILABLE:
+        # images in slides -> OCR if needed
+        if use_ocr:
             for slide in prs.slides:
                 for shape in slide.shapes:
-                    if hasattr(shape, "image") and shape.image:
-                        img_bytes = shape.image.blob
-                        pil = Image.open(BytesIO(img_bytes)).convert("RGB")
-                        text += ocr_image_pytesseract(pil) + "\n"
+                    try:
+                        if shape.shape_type == 13:  # picture
+                            img = shape.image
+                            img_bytes = img.blob
+                            ocr_text = ocr_image_best_effort(img_bytes)
+                            if ocr_text:
+                                text += ocr_text + "\n"
+                    except Exception:
+                        continue
     except Exception:
         pass
     return text
@@ -130,163 +184,208 @@ def extract_text_from_txt_bytes(raw_bytes: bytes) -> str:
         return ""
 
 def extract_text_from_image_bytes(raw_bytes: bytes) -> str:
-    """Direct OCR from an uploaded image file"""
-    try:
-        pil = Image.open(BytesIO(raw_bytes)).convert("RGB")
-    except Exception:
-        return ""
-    # If pytesseract available, use it. Else return "" (no OCR).
-    if TESSERACT_AVAILABLE:
-        return ocr_image_pytesseract(pil)
-    return ""
+    # Direct OCR of image file
+    return ocr_image_best_effort(raw_bytes)
 
-# -------------------------
-# Build Documents and VectorStore
-# -------------------------
-def build_documents_from_uploads(uploaded_files) -> List[Document]:
+# ---------- Build docs & FAISS ----------
+def build_documents_from_uploads(uploaded_files, chunk_size=DEFAULT_CHUNK_SIZE, chunk_overlap=DEFAULT_CHUNK_OVERLAP, max_files=20, max_total_chunks=2000) -> List[Document]:
+    """
+    Args:
+      uploaded_files: list of UploadedFile objects
+      returns list of langchain Documents (with metadata)
+    """
     docs: List[Document] = []
+    total_chunks_local = 0
+    file_count = 0
+
+    splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+
     for f in uploaded_files:
-        name = f.name
+        if file_count >= max_files:
+            st.warning(f"Reached max files limit ({max_files}). Remaining files ignored.")
+            break
+        fname = f.name
+        lower = fname.lower()
         raw = f.getvalue() if hasattr(f, "getvalue") else f.read()
         text = ""
-        lower = name.lower()
         if lower.endswith(".pdf"):
-            text = extract_text_from_pdf_bytes(raw)
+            text = extract_text_from_pdf_bytes(raw, use_ocr=True)
         elif lower.endswith(".docx"):
             text = extract_text_from_docx_bytes(raw)
         elif lower.endswith(".pptx"):
-            text = extract_text_from_pptx_bytes(raw)
+            text = extract_text_from_pptx_bytes(raw, use_ocr=True)
         elif lower.endswith(".txt"):
             text = extract_text_from_txt_bytes(raw)
         elif lower.endswith((".png", ".jpg", ".jpeg", ".jfif", ".gif", ".bmp", ".webp", ".tiff")):
             text = extract_text_from_image_bytes(raw)
         elif lower.endswith(".doc") or lower.endswith(".ppt"):
-            # legacy binary formats — warn user to convert
-            st.warning(f"⚠️ File `{name}` berformat lama (.doc/.ppt). Silakan konversi ke .docx/.pptx jika ekstraksi kosong.")
+            st.warning(f"File `{fname}` is legacy (.doc/.ppt). Convert to .docx/.pptx for better extraction.")
             text = ""
         else:
-            st.warning(f"⚠️ Tipe file `{name}` tidak didukung.")
+            st.warning(f"Unsupported file type: {fname}")
             text = ""
 
         if not text or not text.strip():
-            # skip empty extraction
+            file_count += 1
             continue
 
-        chunks = SPLITTER.split_text(text)
+        chunks = splitter.split_text(text)
+        # enforce max total chunks to avoid OOM
         for i, chunk in enumerate(chunks):
-            docs.append(Document(page_content=chunk, metadata={"source_file": name, "chunk_id": i}))
+            if total_chunks_local >= max_total_chunks:
+                st.warning(f"Reached max total chunks ({max_total_chunks}). Stopping chunking further files.")
+                break
+            docs.append(Document(page_content=chunk, metadata={"source_file": fname, "chunk_id": i}))
+            total_chunks_local += 1
+
+        file_count += 1
+        if total_chunks_local >= max_total_chunks:
+            break
+
+    st.session_state.total_chunks = total_chunks_local
     return docs
 
-def build_faiss_from_documents(docs: List[Document]) -> FAISS | None:
+def build_faiss_from_documents(docs: List[Document], save_local: bool=True, faiss_path: str="faiss_index") -> FAISS | None:
     if not docs:
         return None
     vs = FAISS.from_documents(docs, embedding=EMBEDDINGS)
+    if save_local:
+        try:
+            vs.save_local(faiss_path)
+        except Exception as e:
+            st.warning(f"Could not save FAISS to disk: {e}")
     return vs
 
-# -------------------------
-# Prompt helpers
-# -------------------------
-def format_context(snippets: List[Document]) -> str:
-    parts = []
-    for idx, d in enumerate(snippets, start=1):
-        src = d.metadata.get("source_file", "unknown")
-        cid = d.metadata.get("chunk_id", "-")
-        parts.append(f"[{idx}] ({src}#chunk-{cid})\n{d.page_content}")
-    return "\n\n---\n\n".join(parts)
+def load_faiss_if_exists(faiss_path="faiss_index"):
+    try:
+        if os.path.exists(faiss_path):
+            vs = FAISS.load_local(faiss_path, EMBEDDINGS, allow_dangerous_deserialization=True)
+            return vs
+    except Exception as e:
+        st.warning(f"Failed to load local FAISS index: {e}")
+    return None
 
-def render_sources(snippets: List[Document]):
-    with st.expander("🔎 Sumber konteks yang dipakai"):
-        for i, d in enumerate(snippets, start=1):
-            src = d.metadata.get("source_file", "unknown")
-            cid = d.metadata.get("chunk_id", "-")
-            preview = d.page_content[:300].replace("\n", " ")
-            st.markdown(f"**[{i}]** **{src}** (chunk {cid})")
-            st.caption(preview + ("..." if len(d.page_content) > 300 else ""))
+# ---------- UI: Sidebar settings ----------
+st.sidebar.header("Settings & Upload")
+max_files = st.sidebar.number_input("Max files to index (per build)", min_value=1, max_value=50, value=20)
+max_total_chunks = st.sidebar.number_input("Max total chunks (per build)", min_value=100, max_value=20000, value=2000, step=100)
+chunk_size = st.sidebar.number_input("Chunk size (characters)", min_value=200, max_value=5000, value=DEFAULT_CHUNK_SIZE, step=100)
+chunk_overlap = st.sidebar.number_input("Chunk overlap (characters)", min_value=0, max_value=1000, value=DEFAULT_CHUNK_OVERLAP, step=10)
 
-# -------------------------
-# UI: Sidebar (Upload & actions)
-# -------------------------
-st.sidebar.header("📂 Upload files (multi)")
 uploaded_files = st.sidebar.file_uploader(
-    "Upload multiple files: PDF, TXT, DOCX, PPTX, images (jpg/png/gif...), etc.",
-    type=["pdf", "txt", "docx", "pptx", "png", "jpg", "jpeg", "jfif", "gif", "bmp", "webp", "tiff"],
+    "Upload multiple files (pdf, txt, docx, pptx, images...)", 
+    type=["pdf", "txt", "docx", "pptx", "png", "jpg", "jpeg", "jfif", "gif", "bmp", "webp", "tiff"], 
     accept_multiple_files=True
 )
-build_btn = st.sidebar.button("🚀 Build Vector Store")
-clear_btn = st.sidebar.button("🧹 Reset vector store")
 
-if "vector_store" not in st.session_state:
-    st.session_state.vector_store = None
-if "indexed_files" not in st.session_state:
-    st.session_state.indexed_files = []
+col1, col2, col3 = st.sidebar.columns(3)
+build_btn = col1.button("Build Vector Store")
+load_btn = col2.button("Load saved FAISS")
+clear_btn = col3.button("Clear vector store")
 
 if clear_btn:
     st.session_state.vector_store = None
     st.session_state.indexed_files = []
-    st.success("Vector store di-reset.")
+    st.session_state.total_chunks = 0
+    # optionally remove disk data
+    try:
+        if os.path.exists(st.session_state.faiss_path):
+            import shutil
+            shutil.rmtree(st.session_state.faiss_path)
+    except Exception:
+        pass
+    st.success("Cleared vector store (session + disk)")
+
+if load_btn:
+    vs = load_faiss_if_exists(st.session_state.faiss_path)
+    if vs:
+        st.session_state.vector_store = vs
+        st.session_state.indexed_files = ["(loaded from disk)"]
+        st.success("Loaded FAISS index from disk.")
+    else:
+        st.warning("No FAISS index found on disk.")
 
 if build_btn:
     if not uploaded_files:
-        st.sidebar.warning("Silakan upload minimal 1 file terlebih dahulu.")
+        st.sidebar.warning("Please upload at least one file to build the index.")
     else:
-        with st.spinner("📦 Memproses file dan membuat vector store..."):
-            docs = build_documents_from_uploads(uploaded_files)
+        with st.spinner("Processing files and building vector store..."):
+            docs = build_documents_from_uploads(uploaded_files, chunk_size=chunk_size, chunk_overlap=chunk_overlap, max_files=max_files, max_total_chunks=max_total_chunks)
             if not docs:
-                st.sidebar.error("Tidak ada teks valid yang berhasil diekstrak. Periksa file atau aktifkan OCR (lihat catatan).")
+                st.sidebar.error("No text extracted from uploaded files. Check files or enable Vision API for OCR.")
             else:
-                vs = build_faiss_from_documents(docs)
-                st.session_state.vector_store = vs
-                st.session_state.indexed_files = [f.name for f in uploaded_files]
-                st.sidebar.success(f"Vector store terbangun. Dokumen terindeks: {len(st.session_state.indexed_files)} | Chunk total: {len(docs)}")
+                vs = build_faiss_from_documents(docs, save_local=True, faiss_path=st.session_state.faiss_path)
+                if vs:
+                    st.session_state.vector_store = vs
+                    st.session_state.indexed_files = [f.name for f in uploaded_files]
+                    st.success(f"Vector store built. Files indexed: {len(st.session_state.indexed_files)}  | Total chunks: {st.session_state.total_chunks}")
+                else:
+                    st.error("Failed to create vector store.")
 
-# -------------------------
-# Main: Chat UI
-# -------------------------
-st.title("🤖 Gemini 2.5 Flash Chatbot — Multi-file (PDF/TXT/DOCX/PPTX/Images) ")
-if TESSERACT_AVAILABLE:
-    st.caption("OCR: pytesseract detected (Tesseract binary available). Images and PDFs will be OCR'd when needed.")
-else:
-    st.caption("OCR: pytesseract/Tesseract NOT available. Images will NOT be OCR'd. To enable OCR, install Tesseract on server or integrate external OCR API.")
-
+# show indexed files summary
 if st.session_state.indexed_files:
-    st.write("**Dokumen terindeks:**")
-    st.write(" • " + "\n • ".join(st.session_state.indexed_files))
+    st.markdown("**Indexed files:**")
+    for fname in st.session_state.indexed_files:
+        st.write(f"- {fname}")
+    st.caption(f"Total chunks indexed (session): {st.session_state.total_chunks}")
 
-prompt = st.text_input("Tanyakan sesuatu berdasarkan dokumen yang diupload:", placeholder="Misal: Ringkas semua referensi tentang topik X...")
-ask_btn = st.button("Tanyakan")
+# ---------- Main Chat UI ----------
+st.title("🤖 Gemini Multi-file Chatbot + Google Vision OCR + FAISS")
+if GOOGLE_VISION_API_KEY:
+    st.caption("OCR: using Google Vision API (DOCUMENT_TEXT_DETECTION).")
+elif TESSERACT_AVAILABLE:
+    st.caption("OCR: using local Tesseract (pytesseract).")
+else:
+    st.caption("OCR not enabled. Provide GOOGLE_VISION_API_KEY in .env to enable OCR for images & image-only PDFs.")
 
-if ask_btn:
-    if not prompt or not prompt.strip():
-        st.warning("Masukkan pertanyaan terlebih dahulu.")
-    elif st.session_state.vector_store is None:
-        st.info("Belum ada vector store. Upload file dan klik 'Build Vector Store' di sidebar.")
+query = st.text_input("Ask a question based on indexed documents:", placeholder="Example: Summarize all findings about topic X...")
+k = st.number_input("Number of retrieved chunks (k)", min_value=1, max_value=20, value=5)
+
+if st.button("Ask") and query.strip():
+    if st.session_state.vector_store is None:
+        st.warning("No vector store available. Upload files and build the vector store first.")
     else:
-        with st.spinner("🔎 Mengambil konteks dari vector store..."):
-            results = st.session_state.vector_store.similarity_search(prompt, k=5)
+        with st.spinner("Retrieving relevant chunks..."):
+            hits = st.session_state.vector_store.similarity_search(query, k=k)
+        if not hits:
+            st.info("No relevant documents found.")
+        else:
+            # Format context
+            ctx_parts = []
+            for i, d in enumerate(hits, start=1):
+                src = d.metadata.get("source_file", "unknown")
+                cid = d.metadata.get("chunk_id", "-")
+                ctx_parts.append(f"[{i}] ({src}#chunk-{cid})\n{d.page_content}")
+            context_block = "\n\n---\n\n".join(ctx_parts)
 
-        context_text = format_context(results)
-        system_instructions = (
-            "Jawablah pertanyaan pengguna seakurat mungkin dengan mengacu pada konteks di bawah. "
-            "Jika jawaban tidak terdapat pada konteks, katakan: \"Jawaban tidak tersedia dalam konteks yang diberikan, tetapi pelajari dan berikan informasi dan link website sebagai sumber atau referensi tambahan untuk memperkuat insightful yang mendukung konteks atau topik yang ditanyakan.\" "
-            "Berikan referensi [angka] dan nomor halamannya ke potongan konteks atau topik bila relevan."
-        )
+            system_instructions = (
+                "Jawablah pertanyaan pengguna seakurat mungkin dengan mengacu pada konteks di bawah. "
+                "Jika jawabannya tidak terdapat pada konteks, nyatakan: 'Jawaban tidak tersedia dalam konteks yang diberikan.' "
+                "Sertakan referensi [angka] ke potongan konteks bila relevan."
+            )
+            composed_prompt = f"{system_instructions}\n\n=== KONTEX ===\n{context_block}\n\n=== PERTANYAAN ===\n{query}\n\n=== JAWABAN ==="
 
-        composed_prompt = (
-            f"{system_instructions}\n\n"
-            f"=== KONTEX ===\n{context_text}\n\n"
-            f"=== PERTANYAAN ===\n{prompt}\n\n"
-            f"=== JAWABAN ==="
-            f"=== REFERENSI/SUMBER ==="
-        )
+            # Call Gemini (LLM)
+            try:
+                llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
+                with st.spinner("Generating answer with Gemini..."):
+                    resp = llm.invoke(composed_prompt)
+                # get text
+                out_text = getattr(resp, "content", None) or (resp.candidates[0].content if getattr(resp, "candidates", None) else str(resp))
+                st.subheader("💬 Answer")
+                st.write(out_text)
 
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
-        try:
-            with st.spinner("🤖 Gemini sedang menjawab..."):
-                response = llm.invoke(composed_prompt)
-            st.subheader("💬 Jawaban")
-            out_text = getattr(response, "content", None) or (response.candidates[0].content if getattr(response, "candidates", None) else str(response))
-            st.write(out_text)
-            render_sources(results)
-        except Exception as e:
-            st.error(f"❌ Error saat memanggil Gemini: {e}")
+                # Show sources
+                with st.expander("🔎 Sources used"):
+                    for i, d in enumerate(hits, start=1):
+                        st.markdown(f"**[{i}]** {d.metadata.get('source_file','-')} (chunk {d.metadata.get('chunk_id','-')})")
+                        st.caption(d.page_content[:300] + ("..." if len(d.page_content) > 300 else ""))
+            except Exception as e:
+                st.error(f"Error calling Gemini: {e}")
 
+# ---------- Footer: tips ----------
+st.markdown("---")
+st.markdown("**Tips:**")
+st.markdown("- Set `GOOGLE_VISION_API_KEY` in `.env` to enable OCR in Streamlit Cloud (Vision API DOCUMENT_TEXT_DETECTION).")
+st.markdown("- Use moderate chunk size and max_total_chunks to avoid memory issues. Save FAISS to disk and use `Load saved FAISS` to reuse index across restarts.")
+st.markdown("- For production, consider storing FAISS on S3/GCS and loading it on startup to persist indexes.")
