@@ -4,7 +4,7 @@ import csv
 import streamlit as st
 from pdf_handler import extract_text_from_pdfs
 from text_splitter import split_text
-from vector_store import create_vector_store, load_vector_store
+from vector_store import create_vector_store
 from qa_chain import build_qa_chain
 from user_data import save_user_info
 
@@ -26,6 +26,7 @@ st.set_page_config(page_title="Gemini PDF Chatbot", layout="wide")
 
 def clear_chat():
     st.session_state.messages = [{"role": "assistant", "content": "Upload PDFs and ask a question"}]
+    st.session_state.vector_store = None
 
 def main():
     st.sidebar.title("📁 Upload PDFs")
@@ -35,7 +36,8 @@ def main():
         with st.spinner("Processing PDFs..."):
             raw_text = extract_text_from_pdfs(pdf_docs)
             chunks = split_text(raw_text)
-            create_vector_store(chunks)
+            vector_store = create_vector_store(chunks)
+            st.session_state.vector_store = vector_store
             st.success("PDFs processed and indexed!")
 
     st.sidebar.button("🧹 Clear Chat", on_click=clear_chat)
@@ -53,8 +55,11 @@ def main():
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        db = load_vector_store()
-        docs = db.similarity_search(prompt)
+        if st.session_state.vector_store is None:
+            st.warning("Please upload and process PDFs first.")
+            return
+
+        docs = st.session_state.vector_store.similarity_search(prompt)
         context = "\n".join([doc.page_content for doc in docs])
         chain = build_qa_chain()
         response = chain({"input_documents": docs, "context": context, "question": prompt}, return_only_outputs=True)
@@ -78,4 +83,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
