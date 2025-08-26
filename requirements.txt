@@ -9,3 +9,4 @@ python-dotenv
 google-generativeai
 pypdf2
 faiss-cpu
+huggingface-hub
