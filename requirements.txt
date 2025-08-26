@@ -4,6 +4,6 @@ langchain
 langchain-community
 langchain-google-genai
 sentence-transformers
-chromadb
+chromadb==0.4.14
 python-dotenv
 google-generativeai
