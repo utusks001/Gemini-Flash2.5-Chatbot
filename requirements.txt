@@ -4,7 +4,6 @@ langchain
 langchain-community
 langchain-google-genai
 sentence-transformers
-google-generativeai
-faiss-cpu
-python-dotenv
 chromadb
+python-dotenv
+google-generativeai
