@@ -1,7 +1,7 @@
 import os
 import streamlit as st
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -11,23 +11,15 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 # -------------------------
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-print("API Key:", os.getenv("GOOGLE_API_KEY"))
+
 if not GOOGLE_API_KEY:
     st.error("❌ GOOGLE_API_KEY not found. Please set it in .env file.")
     st.stop()
 
 # -------------------------
-# Embedding Loader with Fallback
+# Embedding pakai HuggingFace
 # -------------------------
-def load_embeddings():
-    try:
-        st.info("🔎 Trying Google Generative AI Embeddings...")
-        return GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    except Exception as e:
-        st.warning(f"⚠️ Google embeddings failed: {e}\nUsing HuggingFace fallback.")
-        return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-embeddings = load_embeddings()
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 # -------------------------
 # Helper: Create Vector Store
