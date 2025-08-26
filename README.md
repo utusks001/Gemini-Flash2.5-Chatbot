@@ -1,6 +1,6 @@
 # Streamlit for Gemini Flash 2.5 Chatbot - Upload files and asking
 
-  ### app.py (Upload Multi-file (PDF+TXT))--> https://gemini-flash25-chatbot-uploadpdfs-and-asking.streamlit.app/
+  ### app.py (Upload Multi-file (PDF/TXT/DOCX/PPTX/Images))--> https://gemini-flash25-chatbot-uploadpdfs-and-asking.streamlit.app/
 
   ### streamlit-app.py (Upload a PDF atau TXT file) https://gemini-flash25-chatbot-uploadpdf.streamlit.app/
 
