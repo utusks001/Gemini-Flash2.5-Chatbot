@@ -7,5 +7,3 @@ chromadb==0.4.14
 sentence-transformers
 python-dotenv
 google-generativeai
-
-
