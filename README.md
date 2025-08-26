@@ -17,9 +17,9 @@ Chatbot berbasis [Gemini 2.5 Flash](https://makersuite.google.com/) yang memungk
 - Modular dan siap deploy ke Streamlit Cloud 
 
 ## 🧱 Struktur Modular
-- `app.py`: UI utama Streamlit
-- `settings.py`: Konfigurasi API key
--  Modul fungsional (PDF, chunking, vector store, chain, user data)
+- `app.py`, 'streamlit-app.py', 'app-streamlit.py' : option pilihan UI utama Streamlit
+- `.env`: API key
+-  Modul fungsional (PDF, TXT, DOCX, PPTX, Chunking, Vector Store, Chain, User Data)
 
 ## 🔧 Instalasi Lokal
 
