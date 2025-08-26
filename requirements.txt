@@ -7,6 +7,4 @@ sentence-transformers
 google-generativeai
 faiss-cpu
 python-dotenv
-```txt
 chromadb
-
