@@ -12,3 +12,4 @@ def load_vector_store(persist_directory="chroma_db"):
     return Chroma(persist_directory=persist_directory, embedding_function=embeddings)
 
 
+
