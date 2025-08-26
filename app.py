@@ -33,7 +33,7 @@ load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")  # for Gemini (if used)
 GOOGLE_VISION_API_KEY = os.getenv("GOOGLE_VISION_API_KEY")  # for Vision OCR
 
-st.set_page_config(page_title="Gemini Multi-file Chatbot + Vision OCR + FAISS", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Gemini Multi-file Chatbot + Vision OCR ", page_icon="🤖", layout="wide")
 
 # Basic checks
 if not GOOGLE_API_KEY:
@@ -388,4 +388,5 @@ st.markdown("**Tips:**")
 st.markdown("- Set `GOOGLE_VISION_API_KEY` in `.env` to enable OCR in Streamlit Cloud (Vision API DOCUMENT_TEXT_DETECTION).")
 st.markdown("- Use moderate chunk size and max_total_chunks to avoid memory issues. Save FAISS to disk and use `Load saved FAISS` to reuse index across restarts.")
 st.markdown("- For production, consider storing FAISS on S3/GCS and loading it on startup to persist indexes.")
+
 
