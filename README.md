@@ -2,9 +2,9 @@
 
   ### app.py (Upload Multi-file (PDF+TXT))--> https://gemini-flash25-chatbot-uploadpdfs-and-asking.streamlit.app/
 
-  ### app-streamlit (Upload a PDF atau TXT file) https://gemini-flash25-chatbot-uploadpdf.streamlit.app/
+  ### streamlit-app.py (Upload a PDF atau TXT file) https://gemini-flash25-chatbot-uploadpdf.streamlit.app/
 
-  ### app-streamlit (Upload Multi-file (PDF/TXT/DOCX/PPTX)) --> https://gemini-flash25-chatbot-unggahpdf-file.streamlit.app/
+  ### app-streamlit.py (Upload Multi-file (PDF/TXT/DOCX/PPTX)) --> https://gemini-flash25-chatbot-unggahpdf-file.streamlit.app/
 
 # 💬 Gemini PDF Chatbot
 
