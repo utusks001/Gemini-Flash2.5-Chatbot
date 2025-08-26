@@ -23,7 +23,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 # --- Config / defaults ---
-st.set_page_config(page_title="Gemini Multi-file Chatbot (Vision OCR + FAISS)", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Gemini Multi-file Chatbot Multi-file (PDF/TXT/DOCX/PPTX/Images)", page_icon="🤖", layout="wide")
 DEFAULT_CHUNK_SIZE = 800
 DEFAULT_CHUNK_OVERLAP = 120
 DEFAULT_MAX_FILES = 20
@@ -314,3 +314,4 @@ if st.button("Ask") and query.strip():
                         st.caption(d.page_content[:300] + ("..." if len(d.page_content) > 300 else ""))
             except Exception as e:
                 st.error(f"Error calling Gemini: {e}")
+
