@@ -5,4 +5,5 @@ langchain-community
 langchain-google-genai
 sentence-transformers
 google-generativeai
+faiss-cpu
 python-dotenv
