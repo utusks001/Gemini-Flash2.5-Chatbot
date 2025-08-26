@@ -15,7 +15,7 @@ import csv
 
 # Load environment
 load_dotenv()
-os.environ["GOOGLE_API_KEY"] = "AIzaSyDja-EvridYPmwLkxqYx9DD6Tkv4WAfbJk"
+os.environ["GOOGLE_API_KEY"] = "AIzaSyA-d6QJzHg0Ow7CM3bHvMS-ix1DrZn5SUk"
 
 # ---- Utility functions ----
 def get_pdf_text(pdf_docs):
