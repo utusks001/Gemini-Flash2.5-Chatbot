@@ -242,7 +242,7 @@ if build_btn:
 # -------------------------
 # Main: Chat UI
 # -------------------------
-st.title("🤖 Gemini 2.5 Flash Chatbot — Multi-file (PDF/TXT/DOCX/PPTX/Images) + FAISS")
+st.title("🤖 Gemini 2.5 Flash Chatbot — Multi-file (PDF/TXT/DOCX/PPTX/Images) ")
 if TESSERACT_AVAILABLE:
     st.caption("OCR: pytesseract detected (Tesseract binary available). Images and PDFs will be OCR'd when needed.")
 else:
@@ -289,3 +289,4 @@ if ask_btn:
             render_sources(results)
         except Exception as e:
             st.error(f"❌ Error saat memanggil Gemini: {e}")
+
