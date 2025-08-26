@@ -8,7 +8,6 @@ from vector_store import create_vector_store, load_vector_store
 from qa_chain import build_qa_chain
 from user_data import save_user_info
 
-
 # 1. config.py (API Key Setup)
 
 # 2. pdf_handler.py (PDF Reader)
@@ -22,6 +21,7 @@ from user_data import save_user_info
 # 6. user_data.py (Save User Info)
 
 # 7. app.py (Streamlit Interface)
+
 st.set_page_config(page_title="Gemini PDF Chatbot", layout="wide")
 
 def clear_chat():
@@ -30,16 +30,17 @@ def clear_chat():
 def main():
     st.sidebar.title("📁 Upload PDFs")
     pdf_docs = st.sidebar.file_uploader("Upload PDF files", accept_multiple_files=True)
-    if st.sidebar.button("Process PDFs"):
-        with st.spinner("Processing..."):
+
+    if st.sidebar.button("Submit & Process"):
+        with st.spinner("Processing PDFs..."):
             raw_text = extract_text_from_pdfs(pdf_docs)
             chunks = split_text(raw_text)
             create_vector_store(chunks)
-            st.success("PDFs processed!")
+            st.success("PDFs processed and indexed!")
 
     st.sidebar.button("🧹 Clear Chat", on_click=clear_chat)
 
-    st.title("💬 Chat with Your PDFs")
+    st.title("💬 Chat with Your PDFs using Gemini 2.5 Flash")
     if "messages" not in st.session_state:
         clear_chat()
 
