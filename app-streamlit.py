@@ -9,7 +9,7 @@ from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import csv
 
-print(os.getenv("GOOGLE_API_KEY"))
+
 # Load environment
 #load_dotenv()
 #os.environ["GOOGLE_API_KEY"] = "AIzaSyDja-EvridYPmwLkxqYx9DD6Tkv4WAfbJk"
@@ -18,6 +18,7 @@ print(os.getenv("GOOGLE_API_KEY"))
 load_dotenv()
 os.environ["GOOGLE_API_KEY"] = "AIzaSyA-d6QJzHg0Ow7CM3bHvMS-ix1DrZn5SUk"
 
+print(os.getenv("GOOGLE_API_KEY"))
 # ---- Utility functions ----
 def get_pdf_text(pdf_docs):
     text = ""
