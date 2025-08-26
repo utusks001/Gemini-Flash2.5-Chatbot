@@ -149,7 +149,7 @@ def render_sources(snippets: List[Document]):
 # -------------------------
 # Streamlit UI
 # -------------------------
-st.title("🤖 Gemini 2.5 Flash Chatbot — Multi-file (PDF/TXT/DOCX/PPTX) + FAISS")
+st.title("🤖 Gemini 2.5 Flash Chatbot — Multi-file (PDF/TXT/DOCX/PPTX) ")
 st.write("Upload banyak file (PDF, TXT, DOCX, PPTX). Untuk .doc/.ppt (format lama), silakan convert ke .docx/.pptx jika ekstraksi kosong.")
 
 # Sidebar: upload + actions
