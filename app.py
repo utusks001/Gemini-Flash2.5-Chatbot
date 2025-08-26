@@ -147,7 +147,7 @@ if build_btn:
 # -------------------------
 # Main (Chat)
 # -------------------------
-st.title("🤖 Gemini 2.5 Flash Chatbot — Multi-file (PDF+TXT) + FAISS")
+st.title("🤖 Gemini 2.5 Flash Chatbot — Multi-file (PDF+TXT) ")
 st.caption("Embedding: sentence-transformers/all-MiniLM-L6-v2 • Vector DB: FAISS • LLM: gemini-2.5-flash")
 
 if st.session_state.file_list:
@@ -199,3 +199,4 @@ if ask:
         render_sources(results)
     except Exception as e:
         st.error(f"❌ Error dari Gemini: {e}")
+
