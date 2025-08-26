@@ -1,12 +1,12 @@
 # vector_store.py
+from langchain.vectorstores import Chroma
 from langchain.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
 
-def create_vector_store(chunks, path="faiss_index"):
+def create_vector_store(chunks, persist_directory="chroma_db"):
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vector_store = FAISS.from_texts(chunks, embedding=embeddings)
-    vector_store.save_local(path)
+    vector_store = Chroma.from_texts(chunks, embedding=embeddings, persist_directory=persist_directory)
+    vector_store.persist()
 
-def load_vector_store(path="faiss_index"):
+def load_vector_store(persist_directory="chroma_db"):
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    return FAISS.load_local(path, embeddings, allow_dangerous_deserialization=True)
+    return Chroma(persist_directory=persist_directory, embedding_function=embeddings)
