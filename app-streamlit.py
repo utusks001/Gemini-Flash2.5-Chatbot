@@ -221,6 +221,7 @@ if ask_btn:
             "\"Jawaban tidak tersedia dalam konteks yang diberikan, "
             "saya coba pelajari dan memberikan tambahan informasi yang diperlukan untuk memperkuat insightfull konteks atau topik  "
             "yang ditanyakan dari berbagai referensi dengan menyertakan link website.\" "
+            "Sertakan referensi [angka] ke potongan konteks bila relevan."
         )
 
         composed_prompt = (
