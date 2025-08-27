@@ -216,7 +216,7 @@ if ask_btn:
 
         context_text = format_context(results)
         system_instructions = (
-            "Jawablah seakurat dan sedetil mungkin dan mudah dipahami berdasarkan konteks berikut. "
+            "Jawablah seakurat dan sedetil mungkin sehingga mudah dipahami berdasarkan konteks berikut. "
             "Jika jawaban tidak ada, katakan: "
             "\"Jawaban tidak tersedia dalam konteks yang diberikan, "
             "saya coba pelajari dan memberikan tambahan informasi yang diperlukan untuk memperkuat insightfull konteks atau topik  "
