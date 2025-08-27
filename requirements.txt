@@ -10,13 +10,9 @@ sentence-transformers
 PyPDF2
 python-docx
 python-pptx
-streamlit
-python-dotenv
-PyPDF2
-python-docx
-python-pptx
-Pillow
+PIL
 pymupdf           # fitz, untuk render PDF pages to images (no poppler)
 pytesseract       # optional: only used if tesseract binary exists
 requests
 google-cloud-vision
+
