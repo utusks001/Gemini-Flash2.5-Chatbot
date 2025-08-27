@@ -10,7 +10,7 @@
 
 # 💬 Gemini PDF Chatbot
 
-Chatbot berbasis [Gemini 2.5 Flash](https://makersuite.google.com/) yang memungkinkan pengguna mengunggah file PDF dan mengajukan pertanyaan berdasarkan isi dokumen. Cocok untuk aplikasi seperti asisten pemasaran properti, analisis dokumen hukum, atau edukasi interaktif.
+Chatbot berbasis [Gemini 2.5 Flash](https://makersuite.google.com/) yang memungkinkan pengguna mengunggah file PDF dan mengajukan pertanyaan berdasarkan isi dokumen. Cocok untuk membantu berbagai aplikasi yang berhubungan dengan konteks seperti asisten pemasaran properti, analisis dokumen teknik, analisis dokumen hukum, analisis dokumen sejarah, analisis dokumen menu kuliner, edukasi interaktif, dsb.
 
 ## 🚀 Fitur
 - Upload dan proses banyak PDF
