@@ -10,6 +10,8 @@ from langchain.docstore.document import Document
 # Fallback imports
 from docx import Document as DocxDocument
 from pptx import Presentation
+load_dotenv()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # FAISS index dir
 INDEX_DIR = "faiss_index"
@@ -162,3 +164,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
