@@ -218,9 +218,9 @@ if ask_btn:
         system_instructions = (
             "Jawablah seakurat mungkin berdasarkan konteks berikut. "
             "Jika jawaban tidak ada, katakan: "
-            "\"Jawaban tidak tersedia dalam konteks yang diberikan atau ditanyakan, "
-            "tetapi pelajari dan beri tambahan informasi yang diperlukan sesuai konteks "
-            "dengan menyertakan link websitenya.\" "
+            "\"Jawaban tidak tersedia dalam konteks yang diberikan, "
+            "tetapi saya akan memberi tambahan informasi yang diperlukan sesuai konteks "
+            "jika diperlukan menyertakan link websitenya.\" "
             "Berikan referensi [angka] ke potongan konteks bila relevan."
         )
 
