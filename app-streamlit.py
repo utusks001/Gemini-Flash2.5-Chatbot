@@ -219,8 +219,8 @@ if ask_btn:
             "Jawablah seakurat dan sedetil mungkin sehingga mudah dipahami berdasarkan konteks berikut. "
             "Jika jawaban tidak ada, katakan: "
             "\"Jawaban tidak tersedia dalam konteks yang diberikan, "
-            "saya coba pelajari dan memberikan tambahan informasi yang diperlukan untuk memperkuat insightfull konteks atau topik  "
-            "yang ditanyakan dari berbagai referensi dengan menyertakan link website.\" "
+            "pelajari dan berikan tambahan informasi yang diperlukan sesuai konteks atau topik  "
+            "yang ditanyakan dari berbagai sumber atau referensi di internet dengan menyertakan link website.\" "
             "Sertakan referensi [angka] ke potongan konteks bila relevan."
         )
 
