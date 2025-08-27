@@ -2,9 +2,11 @@
 
   ### app.py (Conversational Retrieval QA Chatbot)--> https://gemini-flash25-chatbot-uploadpdfs-and-asking.streamlit.app/
 
-  ### streamlit-app.py (Upload a PDF atau TXT file) https://gemini-flash25-chatbot-uploadpdf.streamlit.app/
+  ### streamlit-app.py (Upload a PDF atau TXT file) --> https://gemini-flash25-chatbot-uploadpdf.streamlit.app/
 
   ### app-streamlit.py (Gemini 2.5 Flash Chatbot — Multi-file (PDF/TXT/DOCX/PPTX)) --> https://gemini-flash25-chatbot-unggahpdf-file.streamlit.app/
+
+  ### main.py (Conversational Retrieval QA (Gemini + FAISS)) --> https://gemini-flash25-chatbot-upload-multifile.streamlit.app/
 
 # 💬 Gemini PDF Chatbot
 
