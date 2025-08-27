@@ -17,3 +17,5 @@ pypdf
 unstructured
 streamlit
 transformers
+pytesseract
+opencv-python
