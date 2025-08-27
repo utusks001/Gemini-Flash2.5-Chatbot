@@ -20,10 +20,9 @@ DEFAULT_K = 5
 st.set_page_config(page_title="📚 Multi-File RAG Chatbot", layout="wide")
 
 # API Key
-if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("Please set GOOGLE_API_KEY in Streamlit secrets.")
+if not GOOGLE_API_KEY:
+    st.error("❌ GOOGLE_API_KEY tidak ditemukan. Tambahkan ke file .env sebelum menjalankan.")
     st.stop()
-os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
 
 # --- Loaders ---
 def load_docs(files):
@@ -164,4 +163,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
