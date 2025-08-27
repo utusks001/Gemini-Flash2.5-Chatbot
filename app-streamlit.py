@@ -203,8 +203,8 @@ if ask_btn:
         context_text = format_context(results)
         system_instructions = (
             "Jawablah pertanyaan pengguna seakurat mungkin dengan mengacu pada konteks di bawah. "
-            "Jika jawaban tidak terdapat pada konteks, katakan: \"Jawaban tidak tersedia dalam konteks yang diberikan atau ditanyakan, 
-            "pelajari dan berikan tambahan informasi yang diperlukan sesuai konteks atau topik yang ditanyakan dari berbagai sumber atau referensi dengan menyertakan link website..\" "
+            "Jika jawaban tidak terdapat pada konteks, katakan: \"Jawaban tidak tersedia dalam konteks yang diberikan atau ditanyakan, "
+            "pelajari dan berikan tambahan informasi yang diperlukan sesuai konteks atau topik yang ditanyakan dari berbagai sumber/referensi dengan menyertakan link websitenya.\" "
             "Berikan referensi [angka] ke potongan konteks bila relevan."
         )
 
