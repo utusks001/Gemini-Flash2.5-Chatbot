@@ -220,7 +220,7 @@ if ask_btn:
             "Jika jawaban tidak ada, katakan: "
             "\"Jawaban tidak tersedia dalam konteks yang diberikan, "
             "pelajari dan berikan tambahan informasi yang diperlukan untuk memperkuat insightfull konteks atau topik  "
-            "yang ditanyakan dari berbagai sumber atau referensi dengan menyertakan link website.\" "
+            "yang ditanyakan dari berbagai referensi dengan menyertakan link website.\" "
             "Berikan referensi [angka] ke potongan konteks bila relevan."
         )
 
