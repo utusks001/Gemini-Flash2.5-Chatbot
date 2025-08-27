@@ -6,6 +6,7 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
+from dotenv import load_dotenv
 
 # Fallback imports
 from docx import Document as DocxDocument
@@ -163,5 +164,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
