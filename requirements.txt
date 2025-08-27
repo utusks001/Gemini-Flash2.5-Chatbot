@@ -1,17 +1,15 @@
 streamlit
 python-dotenv
-huggingface-hub
+google-cloud-vision
+PyPDF2
+python-docx
+python-pptx
+Pillow
+pymupdf
+requests
 langchain>=0.2.7
 langchain-community>=0.2.7
 langchain-google-genai>=1.0.7
 google-generativeai>=0.7.2
 faiss-cpu
 sentence-transformers
-PyPDF2
-python-docx
-python-pptx
-pymupdf           # fitz, untuk render PDF pages to images (no poppler)
-pytesseract       # optional: only used if tesseract binary exists
-requests
-google-cloud-vision
-PIL
