@@ -23,7 +23,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-st.set_page_config(page_title="Gemini Multi-file Chatbot (FAISS)", page_icon="🤖", layout="wide")
+st.set_page_config(
+    page_title="Gemini Multi-file Chatbot (FAISS)",
+    page_icon="🤖",
+    layout="wide"
+)
 
 if not GOOGLE_API_KEY:
     st.error("❌ GOOGLE_API_KEY tidak ditemukan. Tambahkan ke file .env sebelum menjalankan.")
@@ -50,6 +54,7 @@ def extract_text_from_pdf(file_bytes: BytesIO) -> str:
         st.warning(f"⚠️ Gagal ekstrak PDF: {e}")
     return text
 
+
 def extract_text_from_txt(file_bytes: BytesIO) -> str:
     try:
         return file_bytes.read().decode("utf-8", errors="ignore")
@@ -57,10 +62,10 @@ def extract_text_from_txt(file_bytes: BytesIO) -> str:
         st.warning(f"⚠️ Gagal baca TXT: {e}")
         return ""
 
+
 def extract_text_from_docx(file_bytes: BytesIO) -> str:
     text = ""
     try:
-        # python-docx requires a file-like object that supports seek/read
         file_bytes.seek(0)
         doc = DocxDocument(file_bytes)
         for p in doc.paragraphs:
@@ -69,6 +74,7 @@ def extract_text_from_docx(file_bytes: BytesIO) -> str:
     except Exception as e:
         st.warning(f"⚠️ Gagal ekstrak DOCX: {e}")
     return text
+
 
 def extract_text_from_pptx(file_bytes: BytesIO) -> str:
     text = ""
@@ -83,10 +89,10 @@ def extract_text_from_pptx(file_bytes: BytesIO) -> str:
         st.warning(f"⚠️ Gagal ekstrak PPTX: {e}")
     return text
 
-# Best-effort generic extractor
+
 def extract_text_from_file(uploaded_file) -> str:
+    """Best-effort generic extractor"""
     name = uploaded_file.name.lower()
-    # Use BytesIO wrapper so we can call multiple extractors safely
     raw = uploaded_file.read()
     bio = BytesIO(raw)
 
@@ -99,7 +105,6 @@ def extract_text_from_file(uploaded_file) -> str:
     elif name.endswith(".pptx"):
         return extract_text_from_pptx(BytesIO(raw))
     elif name.endswith(".doc") or name.endswith(".ppt"):
-        # Legacy binary formats — often fail without external converters.
         st.warning(f"⚠️ File `{uploaded_file.name}` berformat lama (.doc/.ppt). Silakan konversi ke .docx/.pptx untuk ekstraksi teks yang lebih baik.")
         return ""
     else:
@@ -120,6 +125,7 @@ def build_documents_from_uploads(uploaded_files) -> List[Document]:
             docs.append(Document(page_content=chunk, metadata={"source_file": f.name, "chunk_id": i}))
     return docs
 
+
 def build_faiss_from_documents(docs: List[Document]) -> FAISS | None:
     if not docs:
         return None
@@ -137,6 +143,7 @@ def format_context(snippets: List[Document]) -> str:
         parts.append(f"[{idx}] ({src}#chunk-{cid})\n{d.page_content}")
     return "\n\n---\n\n".join(parts)
 
+
 def render_sources(snippets: List[Document]):
     with st.expander("🔎 Sumber konteks yang dipakai"):
         for i, d in enumerate(snippets, start=1):
@@ -152,9 +159,13 @@ def render_sources(snippets: List[Document]):
 st.title("🤖 Gemini 2.5 Flash Chatbot — Multi-file (PDF/TXT/DOCX/PPTX) ")
 st.write("Upload banyak file (PDF, TXT, DOCX, PPTX). Untuk .doc/.ppt (format lama), silakan convert ke .docx/.pptx jika ekstraksi kosong.")
 
-# Sidebar: upload + actions
+# Sidebar
 st.sidebar.header("📂 Upload & Build")
-uploaded_files = st.sidebar.file_uploader("Upload files (pdf, txt, docx, pptx) — boleh banyak", type=["pdf", "txt", "docx", "pptx"], accept_multiple_files=True)
+uploaded_files = st.sidebar.file_uploader(
+    "Upload files (pdf, txt, docx, pptx) — boleh banyak",
+    type=["pdf", "txt", "docx", "pptx"],
+    accept_multiple_files=True
+)
 build_btn = st.sidebar.button("🚀 Build Vector Store")
 clear_btn = st.sidebar.button("🧹 Reset vector store")
 
@@ -188,7 +199,10 @@ if st.session_state.indexed_files:
     st.write(" • " + "\n • ".join(st.session_state.indexed_files))
 
 # Query area
-prompt = st.text_input("Tanyakan sesuatu berdasarkan dokumen yang diupload:", placeholder="Misal: Ringkas dokumen tentang topik X...")
+prompt = st.text_input(
+    "Tanyakan sesuatu berdasarkan dokumen yang diupload:",
+    placeholder="Misal: Ringkas dokumen tentang topik X..."
+)
 ask_btn = st.button("Tanyakan")
 
 if ask_btn:
@@ -202,9 +216,12 @@ if ask_btn:
 
         context_text = format_context(results)
         system_instructions = (
-                 "Jawablah seakurat mungkin berdasarkan konteks berikut. "
-                 "Jika jawaban tidak ada, katakan : \"Jawaban tidak tersedia dalam konteks yang diberikan atau ditanyakan, tetapi pelajari dan beri tambahan informasi yang diperlukan sesuai konteks dengan menyertakan link websitenya.\" "
-                 "Berikan referensi [angka] ke potongan konteks bila relevan." .'"
+            "Jawablah seakurat mungkin berdasarkan konteks berikut. "
+            "Jika jawaban tidak ada, katakan: "
+            "\"Jawaban tidak tersedia dalam konteks yang diberikan atau ditanyakan, "
+            "tetapi pelajari dan beri tambahan informasi yang diperlukan sesuai konteks "
+            "dengan menyertakan link websitenya.\" "
+            "Berikan referensi [angka] ke potongan konteks bila relevan."
         )
 
         composed_prompt = (
@@ -218,10 +235,13 @@ if ask_btn:
         try:
             with st.spinner("🤖 Gemini sedang menjawab..."):
                 response = llm.invoke(composed_prompt)
+
             st.subheader("💬 Jawaban")
-            # response may have .content or .candidates - use .content when available
-            out_text = getattr(response, "content", None) or (response.candidates[0].content if getattr(response, "candidates", None) else str(response))
+            out_text = getattr(response, "content", None) or (
+                response.candidates[0].content if getattr(response, "candidates", None) else str(response)
+            )
             st.write(out_text)
             render_sources(results)
+
         except Exception as e:
             st.error(f"❌ Error saat memanggil Gemini: {e}")
