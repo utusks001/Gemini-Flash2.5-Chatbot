@@ -21,7 +21,7 @@ Chatbot berbasis [Gemini 2.5 Flash](https://makersuite.google.com/) yang memungk
 ## 🧱 Struktur Modular
 - 'app-streamlit.py' : pilihan UI utama Streamlit
 - `.env`: Google API Key
--  Modul fungsional (PDF, TXT, DOCX, PPTX, Chunking, Vector Store, Chain, User Data)
+-  Modul fungsional (FAISS, Chunking, Vector Store, Chain, User Data)
 
 ## 🔧 Instalasi Lokal
 
