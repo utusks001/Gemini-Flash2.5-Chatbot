@@ -15,4 +15,3 @@ pymupdf           # fitz, untuk render PDF pages to images (no poppler)
 pytesseract       # optional: only used if tesseract binary exists
 requests
 google-cloud-vision
-
