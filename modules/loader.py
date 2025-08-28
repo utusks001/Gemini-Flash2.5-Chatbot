@@ -1,3 +1,4 @@
+# Load & split dokumen + OCR image
 from io import BytesIO
 from PIL import Image
 import pytesseract
