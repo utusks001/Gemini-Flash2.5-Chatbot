@@ -1,4 +1,5 @@
 # Pilih LLM (Gemini, GROQ, LLaMA)
+# Load Gemini, GROQ, atau LLaMA
 import os
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
