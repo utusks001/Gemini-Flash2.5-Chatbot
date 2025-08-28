@@ -13,6 +13,7 @@ langchain-google-genai
 langchain-groq
 google-generativeai
 faiss-cpu
+faiss-gpu
 sentence-transformers
 pypdf
 unstructured
