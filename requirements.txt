@@ -1,7 +1,6 @@
 streamlit
 python-dotenv
 google-cloud-vision
-PyPDF2
 python-docx
 python-pptx
 Pillow
@@ -26,3 +25,4 @@ langchain
 chromadb
 easyocr
 torch==2.0.1
+
