@@ -23,11 +23,21 @@ Chatbot berbasis [Gemini 2.5 Flash](https://makersuite.google.com/) yang memungk
 - `.env`: Google API Key
 -  Modul fungsional (Parsing File, Text splitter, File extractors, Build documents & FAISS, LangChain, VectorStore, Embeddings, LLM, Chunking)
 
-## 🔧 Instalasi Lokal
+# Setup & Installation
 
-```bash
-git clone https://github.com/your-username/gemini-pdf-chatbot.git
-cd gemini-pdf-chatbot
-python -m venv venv
-source venv/bin/activate  # atau venv\Scripts\activate di Windows
+## 1. Clone atau download repostiroy ini
+git clone https://github.com/mazprimrez/sic6-chatbot-with-streamlit.git
+cd Gemini-Flash2.5-Chatbot
+
+## 2. Install Dependencies:
 pip install -r requirements.txt
+//Make sure you have Python 3.7+ installed.
+
+## 3. Set Environment Variables: buat file dengan nama .env kemudian isi file tersebut dengan API Keys sebagai berikut Example:
+GROQ_API_KEY = "GROQQ API KEY"
+GOOGLE_API_KEY = "GOOGLE API KEY"
+
+## 4. Run Streamlit di local
+streamlit run main.py
+
+## 5. Lalu deploy ke https://share.streamlit.io/
