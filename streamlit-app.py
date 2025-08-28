@@ -2,7 +2,6 @@
 import os
 from io import BytesIO
 from typing import List, Optional
-import tempfile
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -12,10 +11,12 @@ from PyPDF2 import PdfReader
 from docx import Document as DocxDocument
 from pptx import Presentation as PptxPresentation
 from PIL import Image
-import pytesseract
 
 # pdf images
 from pdf2image import convert_from_bytes
+
+# OCR pakai EasyOCR
+import easyocr
 
 # langchain
 from langchain.schema import Document
@@ -23,7 +24,6 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
 
 # LLM wrappers
 try:
@@ -51,15 +51,22 @@ EMBEDDINGS = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-
 SPLITTER = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
 
 # ---------------------------------------------------------------------
-# OCR via pytesseract
+# OCR via EasyOCR
 # ---------------------------------------------------------------------
-def ocr_image_pytesseract(image: Image.Image, lang: str = "eng") -> str:
-    try:
-        text = pytesseract.image_to_string(image, lang=lang)
-        return text
-    except Exception as e:
-        st.warning(f"OCR error: {e}")
-        return ""
+@st.cache_resource
+def get_easyocr_reader(lang="en"):
+    langs = []
+    if "eng" in lang: langs.append("en")
+    if "ind" in lang: langs.append("id")
+    if not langs: langs = ["en"]
+    return easyocr.Reader(langs, gpu=False)
+
+def ocr_image_easyocr(image: Image.Image, lang="eng") -> str:
+    reader = get_easyocr_reader(lang)
+    img_array = image.convert("RGB")
+    results = reader.readtext(np.array(img_array))
+    text = "\n".join([res[1] for res in results])
+    return text
 
 # ---------------------------------------------------------------------
 # Extractors
@@ -79,7 +86,7 @@ def extract_text_from_pdf(file_bytes: bytes, ocr_lang="eng") -> str:
         try:
             images = convert_from_bytes(file_bytes, dpi=200)
             for img in images:
-                t = ocr_image_pytesseract(img, lang=ocr_lang)
+                t = ocr_image_easyocr(img, lang=ocr_lang)
                 text += t + "\n"
         except Exception as e:
             st.warning(f"PDF OCR failed: {e}")
@@ -94,8 +101,7 @@ def extract_text_from_txt(file_bytes: bytes) -> str:
 def extract_text_from_docx(file_bytes: bytes) -> str:
     text = ""
     try:
-        bio = BytesIO(file_bytes)
-        doc = DocxDocument(bio)
+        doc = DocxDocument(BytesIO(file_bytes))
         for p in doc.paragraphs:
             if p.text:
                 text += p.text + "\n"
@@ -121,7 +127,7 @@ def extract_text_from_image_bytes(file_bytes: bytes, lang="eng") -> str:
     except Exception as e:
         st.warning(f"open image failed: {e}")
         return ""
-    return ocr_image_pytesseract(img, lang=lang)
+    return ocr_image_easyocr(img, lang=lang)
 
 def extract_text_from_file(uploaded_file, ocr_lang="eng") -> str:
     name = uploaded_file.name.lower()
@@ -176,11 +182,9 @@ def get_llm(choice="gemini"):
 # ---------------------------------------------------------------------
 # Streamlit UI
 # ---------------------------------------------------------------------
-st.title("🤖 Gemini / LLaMA OCR Multi-file Chatbot (FAISS)")
-st.write("Upload PDF/TXT/DOCX/PPTX/Images (png/jpg/jpeg/bmp/jfif/gif).")
+st.title("🤖 Gemini / LLaMA OCR Multi-file Chatbot (EasyOCR + FAISS)")
 
 with st.sidebar:
-    st.header("📂 Upload & Options")
     uploaded_files = st.file_uploader(
         "Upload multiple files",
         type=["pdf","txt","docx","pptx","png","jpg","jpeg","bmp","jfif","gif"],
