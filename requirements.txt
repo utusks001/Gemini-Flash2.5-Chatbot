@@ -17,5 +17,11 @@ langchain-chroma
 langchain-huggingface
 pypdf2
 faiss-cpu
-pytesseract
 easyocr
+PyPDF2
+pdf2image
+easyocr
+torch
+torchvision
+torchaudio
+llama-cpp-python
