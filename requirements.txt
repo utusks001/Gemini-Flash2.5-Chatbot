@@ -10,12 +10,15 @@ langchain-groq
 
 # Embeddings
 sentence-transformers   # includes transformers + torch
+transformers
+torch
 
 # Vector store
 faiss-cpu
 
 # File parsing
-pypdf                   # PyPDF2 sudah deprecated, gunakan pypdf
+pypdf                  
+PyPDF2
 python-docx
 python-pptx
 
@@ -23,6 +26,10 @@ python-pptx
 easyocr
 Pillow
 numpy
+pillow
 
 # Utils
 requests
+
+pytesseract
+
