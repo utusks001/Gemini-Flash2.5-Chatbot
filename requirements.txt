@@ -12,3 +12,9 @@ langchain-google-genai
 langchain-groq
 langchain-community
 chromadb
+python-dotenv
+langchain-chroma
+langchain-huggingface
+pypdf2
+faiss-cpu
+pytesseract
