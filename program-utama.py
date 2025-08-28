@@ -9,109 +9,116 @@ pakai Gemini atau Groq
 """
 import streamlit as st
 import os
+import io
 import pytesseract
-from PyPDF2 import PdfReader
-from docx import Document as DocxDocument
-from pptx import Presentation
 from PIL import Image
+import tempfile
+import fitz  # PyMuPDF
+import docx
+import pptx
+from PyPDF2 import PdfReader
 
-from langchain.schema import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.docstore.document import Document
 from langchain.vectorstores import FAISS
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain.chains import ConversationalRetrievalChain
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI
 
+# === Load API Key from Streamlit secrets ===
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 
-# Load API key dari secrets
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+# === Utility: extract text from different file types ===
+def read_pdf(file):
+    text = ""
+    pdf = PdfReader(file)
+    for page in pdf.pages:
+        text += page.extract_text() + "\n"
+    return text
 
+def read_docx(file):
+    doc = docx.Document(file)
+    return "\n".join([para.text for para in doc.paragraphs])
 
-# OCR pakai Tesseract (English + Indonesian)
-def extract_text_from_image(file):
-    try:
-        image = Image.open(file)
-        text = pytesseract.image_to_string(image, lang="eng+ind")
-        return text
-    except Exception as e:
-        return f"OCR failed: {e}"
+def read_pptx(file):
+    prs = pptx.Presentation(file)
+    text = ""
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if hasattr(shape, "text"):
+                text += shape.text + "\n"
+    return text
 
+def read_txt(file):
+    return file.read().decode("utf-8")
 
-# Parsing file
-def load_documents(uploaded_files):
+def read_image(file):
+    image = Image.open(file)
+    text = pytesseract.image_to_string(image, lang="eng+ind")
+    return text
+
+# === Build documents from uploaded files ===
+def build_documents_from_uploads(uploaded_files):
     documents = []
     for uploaded_file in uploaded_files:
         filename = uploaded_file.name.lower()
+        text = ""
 
         if filename.endswith(".pdf"):
-            pdf = PdfReader(uploaded_file)
-            text = "\n".join([page.extract_text() or "" for page in pdf.pages])
-            documents.append(Document(page_content=text, metadata={"source": filename}))
-
+            text = read_pdf(uploaded_file)
         elif filename.endswith(".docx"):
-            doc = DocxDocument(uploaded_file)
-            text = "\n".join([para.text for para in doc.paragraphs])
-            documents.append(Document(page_content=text, metadata={"source": filename}))
-
+            text = read_docx(uploaded_file)
         elif filename.endswith(".pptx"):
-            prs = Presentation(uploaded_file)
-            text_runs = []
-            for slide in prs.slides:
-                for shape in slide.shapes:
-                    if hasattr(shape, "text"):
-                        text_runs.append(shape.text)
-            documents.append(Document(page_content="\n".join(text_runs), metadata={"source": filename}))
-
-        elif filename.endswith((".png", ".jpg", ".jpeg", ".gif", ".bmp", ".jfif")):
-            text = extract_text_from_image(uploaded_file)
-            documents.append(Document(page_content=text, metadata={"source": filename}))
-
+            text = read_pptx(uploaded_file)
         elif filename.endswith(".txt"):
-            stringio = uploaded_file.getvalue().decode("utf-8")
-            documents.append(Document(page_content=stringio, metadata={"source": filename}))
+            text = read_txt(uploaded_file)
+        elif filename.endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif", ".jfif")):
+            text = read_image(uploaded_file)
+        else:
+            text = "Unsupported file type."
 
+        if text.strip():
+            documents.append(Document(page_content=text, metadata={"source": filename}))
     return documents
 
-
-# Bangun vectorstore
-def build_vectorstore(documents):
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    docs = splitter.split_documents(documents)
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
-        google_api_key=GOOGLE_API_KEY
-    )
-    return FAISS.from_documents(docs, embeddings)
-
-
-# Streamlit app
+# === Main App ===
 def main():
-    st.title("📚 Multi-file Chatbot with OCR (Tesseract + Gemini)")
+    st.title("📚 Multi-file RAG Chatbot with OCR (Tesseract + Gemini)")
 
     uploaded_files = st.file_uploader(
-        "Upload PDF, DOCX, PPTX, TXT, atau Images",
-        type=["pdf", "docx", "pptx", "txt", "png", "jpg", "jpeg", "gif", "bmp", "jfif"],
+        "Upload multiple files (pdf, docx, pptx, txt, images)...",
+        type=["pdf", "docx", "pptx", "txt", "png", "jpg", "jpeg", "bmp", "gif", "jfif"],
         accept_multiple_files=True
     )
 
     if uploaded_files:
-        with st.spinner("Memproses dokumen..."):
-            documents = load_documents(uploaded_files)
-            vectorstore = build_vectorstore(documents)
-            retriever = vectorstore.as_retriever()
-            chat_model = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=GOOGLE_API_KEY)
-            qa = ConversationalRetrievalChain.from_llm(chat_model, retriever)
+        st.success(f"{len(uploaded_files)} file(s) uploaded successfully!")
 
-        if "chat_history" not in st.session_state:
-            st.session_state.chat_history = []
+        if st.button("Build Knowledge Base"):
+            with st.spinner("Processing files and building vector store..."):
+                documents = build_documents_from_uploads(uploaded_files)
+                splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+                texts = splitter.split_documents(documents)
 
-        query = st.text_input("Tanyakan sesuatu dari dokumen Anda:")
-        if query:
-            result = qa({"question": query, "chat_history": st.session_state.chat_history})
-            st.write("**Jawaban:**", result["answer"])
-            st.session_state.chat_history.append((query, result["answer"]))
+                embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+                vectorstore = FAISS.from_documents(texts, embeddings)
+                st.session_state.vs = vectorstore
+            st.success("Knowledge base built!")
 
+    query = st.text_input("Ask a question about your documents:")
+
+    if query and "vs" in st.session_state:
+        docs = st.session_state.vs.similarity_search(query, k=3)
+        context = "\n\n".join([d.page_content for d in docs])
+
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
+        response = llm.predict(f"Answer the question based on context:\n\n{context}\n\nQuestion: {query}")
+
+        st.subheader("Answer:")
+        st.write(response)
+
+        with st.expander("Retrieved context"):
+            st.write(context)
 
 if __name__ == "__main__":
     main()
-
-
