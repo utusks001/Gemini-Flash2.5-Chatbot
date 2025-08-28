@@ -12,5 +12,3 @@ langchain-community>=0.0.26
 langchain-google-genai>=0.0.6
 langchain-groq>=0.0.2
 sentence-transformers
-pytesseract
-pdf2image
