@@ -21,3 +21,7 @@ pytesseract
 opencv-python
 chromadb
 reportlab
+streamlit
+langchain
+chromadb
+easyocr
