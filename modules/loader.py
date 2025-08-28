@@ -1,4 +1,5 @@
 # Load & split dokumen + OCR image
+# Tambahan OCR untuk Gambar
 from io import BytesIO
 from PIL import Image
 import pytesseract
