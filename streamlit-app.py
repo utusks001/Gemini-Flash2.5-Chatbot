@@ -1,112 +1,126 @@
-# app.py
+# streamlit-app.py
 import streamlit as st
 import os
 import requests
+import docx
+import pptx
 from PyPDF2 import PdfReader
-from docx import Document as DocxDocument
-from pptx import Presentation
-from PIL import Image
-
-from langchain.schema import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.docstore.document import Document
 from langchain.vectorstores import FAISS
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain.chains import ConversationalRetrievalChain
 
-from langchain_groq import ChatGroq   # tambahan
+# === Load API Keys from Streamlit secrets ===
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+OCRSPACE_API_KEY = st.secrets["OCRSPACE_API_KEY"]
 
-# Load secrets
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-OCRSPACE_API_KEY = os.getenv("OCRSPACE_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 
-# OCR with OCR.space API
-def extract_text_from_image(file):
-    try:
-        url = "https://api.ocr.space/parse/image"
-        payload = {"apikey": OCRSPACE_API_KEY, "language": "eng,ind"}
-        files = {"file": file.getvalue()}
-        response = requests.post(url, data=payload, files={"file": file})
-        result = response.json()
-        if result.get("ParsedResults"):
-            return result["ParsedResults"][0]["ParsedText"]
-        return ""
-    except Exception as e:
-        return f"OCR failed: {e}"
+# === Utility: extract text from different file types ===
+def read_pdf(file):
+    text = ""
+    pdf = PdfReader(file)
+    for page in pdf.pages:
+        if page.extract_text():
+            text += page.extract_text() + "\n"
+    return text
 
-# Extract text from uploaded files
-def load_documents(uploaded_files):
+def read_docx(file):
+    doc = docx.Document(file)
+    return "\n".join([para.text for para in doc.paragraphs])
+
+def read_pptx(file):
+    prs = pptx.Presentation(file)
+    text = ""
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if hasattr(shape, "text"):
+                text += shape.text + "\n"
+    return text
+
+def read_txt(file):
+    return file.read().decode("utf-8")
+
+def read_image(file):
+    """Use OCR.space API to extract text from image"""
+    url_api = "https://api.ocr.space/parse/image"
+    payload = {
+        "isOverlayRequired": False,
+        "apikey": OCRSPACE_API_KEY,
+        "language": "eng"  # bisa diganti ke "eng+ind" untuk English+Indonesian
+    }
+    files = {"file": (file.name, file, file.type)}
+    response = requests.post(url_api, files=files, data=payload)
+    result = response.json()
+    if result.get("IsErroredOnProcessing"):
+        return "[OCR Error] " + str(result.get("ErrorMessage"))
+    text = ""
+    for parsed in result.get("ParsedResults", []):
+        text += parsed.get("ParsedText", "")
+    return text
+
+# === Build documents from uploaded files ===
+def build_documents_from_uploads(uploaded_files):
     documents = []
     for uploaded_file in uploaded_files:
         filename = uploaded_file.name.lower()
+        text = ""
 
         if filename.endswith(".pdf"):
-            pdf = PdfReader(uploaded_file)
-            text = "\n".join([page.extract_text() or "" for page in pdf.pages])
-            documents.append(Document(page_content=text, metadata={"source": filename}))
-
+            text = read_pdf(uploaded_file)
         elif filename.endswith(".docx"):
-            doc = DocxDocument(uploaded_file)
-            text = "\n".join([para.text for para in doc.paragraphs])
-            documents.append(Document(page_content=text, metadata={"source": filename}))
-
+            text = read_docx(uploaded_file)
         elif filename.endswith(".pptx"):
-            prs = Presentation(uploaded_file)
-            text_runs = []
-            for slide in prs.slides:
-                for shape in slide.shapes:
-                    if hasattr(shape, "text"):
-                        text_runs.append(shape.text)
-            documents.append(Document(page_content="\n".join(text_runs), metadata={"source": filename}))
-
-        elif filename.endswith((".png", ".jpg", ".jpeg", ".gif", ".bmp", ".jfif")):
-            text = extract_text_from_image(uploaded_file)
-            documents.append(Document(page_content=text, metadata={"source": filename}))
-
+            text = read_pptx(uploaded_file)
         elif filename.endswith(".txt"):
-            stringio = uploaded_file.getvalue().decode("utf-8")
-            documents.append(Document(page_content=stringio, metadata={"source": filename}))
+            text = read_txt(uploaded_file)
+        elif filename.endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif", ".jfif")):
+            text = read_image(uploaded_file)
+        else:
+            text = "Unsupported file type."
 
+        if text.strip():
+            documents.append(Document(page_content=text, metadata={"source": filename}))
     return documents
 
-# Build vector store
-def build_vectorstore(documents):
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    docs = splitter.split_documents(documents)
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=GOOGLE_API_KEY)
-    return FAISS.from_documents(docs, embeddings)
-
-# Main Streamlit app
+# === Main App ===
 def main():
-    st.title("📚 Multi-file Chatbot with OCR (OCR.space + Gemini/Groq)")
+    st.title("📚 Multi-file RAG Chatbot with OCR.space + Gemini")
 
     uploaded_files = st.file_uploader(
-        "Upload PDF, DOCX, PPTX, TXT, or Images",
-        type=["pdf", "docx", "pptx", "txt", "png", "jpg", "jpeg", "gif", "bmp", "jfif"],
+        "Upload multiple files (pdf, docx, pptx, txt, images)...",
+        type=["pdf", "docx", "pptx", "txt", "png", "jpg", "jpeg", "bmp", "gif", "jfif"],
         accept_multiple_files=True
     )
 
     if uploaded_files:
-        with st.spinner("Processing documents..."):
-            documents = load_documents(uploaded_files)
-            vectorstore = build_vectorstore(documents)
-            retriever = vectorstore.as_retriever()
+        st.success(f"{len(uploaded_files)} file(s) uploaded successfully!")
 
-            # pilih LLM
-            llm_choice = st.radio("Pilih LLM:", ["Gemini (Google)", "Groq"])
-            if llm_choice == "Gemini (Google)":
-                chat_model = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=GOOGLE_API_KEY)
-            else:
-                chat_model = ChatGroq(model="mixtral-8x7b-32768", groq_api_key=GROQ_API_KEY)
+        if st.button("Build Knowledge Base"):
+            with st.spinner("Processing files and building vector store..."):
+                documents = build_documents_from_uploads(uploaded_files)
+                splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+                texts = splitter.split_documents(documents)
 
-            qa = ConversationalRetrievalChain.from_llm(chat_model, retriever)
+                embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+                vectorstore = FAISS.from_documents(texts, embeddings)
+                st.session_state.vs = vectorstore
+            st.success("Knowledge base built!")
 
-        chat_history = []
-        query = st.text_input("Ask a question about your documents:")
-        if query:
-            result = qa({"question": query, "chat_history": chat_history})
-            st.write("**Answer:**", result["answer"])
-            chat_history.append((query, result["answer"]))
+    query = st.text_input("Ask a question about your documents:")
+
+    if query and "vs" in st.session_state:
+        docs = st.session_state.vs.similarity_search(query, k=3)
+        context = "\n\n".join([d.page_content for d in docs])
+
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
+        response = llm.predict(f"Answer the question based on context:\n\n{context}\n\nQuestion: {query}")
+
+        st.subheader("Answer:")
+        st.write(response)
+
+        with st.expander("Retrieved context"):
+            st.write(context)
 
 if __name__ == "__main__":
     main()
