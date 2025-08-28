@@ -1,4 +1,5 @@
 # Integrasi LLM + retriever
+# modules/chain.py
 from langchain.chains import RetrievalQA
 
 def build_qa_chain(llm, retriever):
