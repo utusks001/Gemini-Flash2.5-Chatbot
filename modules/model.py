@@ -1,13 +1,12 @@
 # Pilih Model LLM (Gemini, GROQ, LLaMA)
 # Load Gemini, GROQ, atau LLaMA
-import os
-from dotenv import load_dotenv
+# modules/model.py
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain.llms import HuggingFacePipeline
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-
-load_dotenv()
+import os
 
 def load_llm(provider="gemini"):
     if provider == "gemini":
