@@ -18,3 +18,4 @@ langchain-huggingface
 pypdf2
 faiss-cpu
 pytesseract
+easyocr
