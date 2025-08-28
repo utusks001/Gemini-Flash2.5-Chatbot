@@ -14,7 +14,6 @@ from PyPDF2 import PdfReader
 from docx import Document as DocxDocument
 from pptx import Presentation
 from PIL import Image
-from io import BytesIO
 
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -23,11 +22,11 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from langchain.chains import ConversationalRetrievalChain
 
 
-# Load API key dari Streamlit secrets
+# Load API key dari secrets
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 
-# OCR untuk gambar dengan Tesseract
+# OCR pakai Tesseract (English + Indonesian)
 def extract_text_from_image(file):
     try:
         image = Image.open(file)
@@ -37,7 +36,7 @@ def extract_text_from_image(file):
         return f"OCR failed: {e}"
 
 
-# Parsing berbagai jenis dokumen
+# Parsing file
 def load_documents(uploaded_files):
     documents = []
     for uploaded_file in uploaded_files:
@@ -73,7 +72,7 @@ def load_documents(uploaded_files):
     return documents
 
 
-# Membuat vectorstore dari dokumen
+# Bangun vectorstore
 def build_vectorstore(documents):
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     docs = splitter.split_documents(documents)
@@ -84,7 +83,7 @@ def build_vectorstore(documents):
     return FAISS.from_documents(docs, embeddings)
 
 
-# Aplikasi Streamlit
+# Streamlit app
 def main():
     st.title("📚 Multi-file Chatbot with OCR (Tesseract + Gemini)")
 
@@ -102,14 +101,17 @@ def main():
             chat_model = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=GOOGLE_API_KEY)
             qa = ConversationalRetrievalChain.from_llm(chat_model, retriever)
 
-        chat_history = []
+        if "chat_history" not in st.session_state:
+            st.session_state.chat_history = []
+
         query = st.text_input("Tanyakan sesuatu dari dokumen Anda:")
         if query:
-            result = qa({"question": query, "chat_history": chat_history})
+            result = qa({"question": query, "chat_history": st.session_state.chat_history})
             st.write("**Jawaban:**", result["answer"])
-            chat_history.append((query, result["answer"]))
+            st.session_state.chat_history.append((query, result["answer"]))
 
 
 if __name__ == "__main__":
     main()
+
 
