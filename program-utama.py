@@ -5,10 +5,7 @@ Gemini / Groq Image-enabled Multi-File Chatbot
 ================================================
 Streamlit app yang bisa menerima file PDF, DOCX, PPTX, TXT **dan** gambar,
 ekstraksi teks (OCR utk gambar), buat FAISS vector store, lalu jawab pertanyaan
-pakai Gemini atau Groq Llama-3.1-405B-Instruct.
-
-Author: OpenAI-ChatGPT
-License: MIT
+pakai Gemini atau Groq 
 """
 
 import os
@@ -16,8 +13,8 @@ import io
 import streamlit as st
 from dotenv import load_dotenv
 from PIL import Image
-import easyocr
 import numpy as np
+import pytesseract
 
 # ---------------------------------
 # LangChain imports
@@ -56,9 +53,6 @@ if not (GOOGLE_API_KEY or GROQ_API_KEY):
 # ---------------------------------
 EMBEDDINGS = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 SPLITTER = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
-
-# OCR reader (load sekali)
-OCR_READER = easyocr.Reader(["en"], gpu=False, verbose=False)
 
 # ---------------------------------
 # File parsing helpers
@@ -118,8 +112,9 @@ def extract_text_from_image(file_bytes):
     try:
         image = Image.open(file_bytes).convert("RGB")
         img_np = np.array(image)
-        results = OCR_READER.readtext(img_np, detail=0)
-        return "\n".join(results)
+        # OCR: English + Indonesian
+        text = pytesseract.image_to_string(img_np, lang="eng+ind")
+        return text.strip()
     except Exception as e:
         st.warning(f"⚠️ Image OCR error: {e}")
         return ""
@@ -218,17 +213,17 @@ def get_llm():
 # Streamlit UI
 # ---------------------------------
 st.set_page_config(
-    page_title="Gemini / Groq Image-Chatbot – Multi-File, OCR, FAISS",
+    page_title="Gemini / Groq OCR Chatbot – Multi-File, FAISS",
     page_icon="🤖",
     layout="wide",
 )
 
-st.title("🤖 Gemini / Groq Image-Chatbot – Multi-File, OCR, FAISS")
+st.title("🤖 Gemini / Groq OCR Chatbot – Multi-File, FAISS")
 st.markdown(
     """
 Upload file **PDF, TXT, DOCX, PPTX, BMP, PNG, JPG, JPEG, GIF, JFIF**.  
 Pipeline:
-1. **Extract** teks (OCR utk gambar)  
+1. **Extract** teks (OCR utk gambar via Tesseract)  
 2. **Chunk** teks  
 3. **Embed** & index FAISS  
 4. **Answer** pertanyaan via Gemini / Groq
@@ -294,8 +289,7 @@ if ask_btn:
         system_instructions = (
             "Jawablah seakurat dan sedetil mungkin berdasarkan konteks berikut. "
             "Jika jawaban tidak ada, katakan: "
-            "\"Jawaban tidak tersedia dalam konteks yang diberikan, "
-            "tambahkan informasi dari internet dengan link.\" "
+            "\"Jawaban tidak tersedia dalam konteks yang diberikan.\" "
             "Sertakan referensi [angka] jika relevan."
         )
 
@@ -328,7 +322,7 @@ st.markdown("---")
 st.markdown(
     """
 **Disclaimer**  
-OCR bergantung pada resolusi gambar.  
+OCR bergantung pada kualitas gambar.  
 Jawaban dihasilkan LLM, bukan pengganti saran profesional.
 """
 )
