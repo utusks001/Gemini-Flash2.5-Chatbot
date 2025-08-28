@@ -1,5 +1,0 @@
-# OCR bahasa Indonesia/English
-tesseract-ocr
-tesseract-ocr-eng
-tesseract-ocr-ind
-poppler-utils
