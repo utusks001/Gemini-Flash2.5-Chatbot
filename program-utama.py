@@ -44,4 +44,4 @@ if st.button("Tanyakan") and query and "qa_chain" in st.session_state:
         for doc in result["source_documents"]:
             st.write(f"- {doc.metadata.get('source_file', 'Tidak diketahui')} (Chunk {doc.metadata.get('chunk_id')})")
 
-        pdf_bytes = export_answer_to_pdf(result["result
+       pdf_bytes = export_answer_to_pdf(result["result"])
