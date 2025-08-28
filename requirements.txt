@@ -1,36 +1,9 @@
-# Core
 streamlit
-python-dotenv
-
-# LLMs
-langchain
-langchain-community
-langchain-google-genai
-langchain-groq
-google-generativeai
-
-# Embeddings
-sentence-transformers   # includes transformers + torch
-transformers
-torch
-
-# Vector store
-faiss-cpu
-
-# File parsing
-pypdf                  
+pytesseract
+pillow
 PyPDF2
 python-docx
 python-pptx
-pymupdf
-
-# OCR & Images
-Pillow
-pillow
-pytesseract
-
-# Utils
-requests
-numpy
-panda
-
+langchain
+faiss-cpu
+langchain-google-genai
