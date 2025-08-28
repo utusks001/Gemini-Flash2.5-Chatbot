@@ -7,6 +7,7 @@ langchain
 langchain-community
 langchain-google-genai
 langchain-groq
+google-generativeai
 
 # Embeddings
 sentence-transformers   # includes transformers + torch
@@ -27,9 +28,9 @@ easyocr
 Pillow
 numpy
 pillow
+pytesseract
 
 # Utils
 requests
 
-pytesseract
 
