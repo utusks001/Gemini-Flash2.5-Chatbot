@@ -1,6 +1,5 @@
 # Embedding & vector store
 # modules/embedder.py
-# modules/embedder.py
 
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import Chroma
