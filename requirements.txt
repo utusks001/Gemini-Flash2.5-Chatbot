@@ -22,6 +22,7 @@ pypdf
 PyPDF2
 python-docx
 python-pptx
+pymupdf
 
 # OCR & Images
 Pillow
@@ -32,3 +33,4 @@ pytesseract
 requests
 numpy
 panda
+
