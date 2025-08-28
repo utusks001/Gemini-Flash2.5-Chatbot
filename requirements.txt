@@ -1,12 +1,10 @@
 streamlit
 python-dotenv
-PyPDF2
+pypdf2
 python-docx
 python-pptx
+langchain-google-genai
 langchain
 langchain-community
-langchain-google-genai
-langchain-groq
 faiss-cpu
 sentence-transformers
-docx2txt
