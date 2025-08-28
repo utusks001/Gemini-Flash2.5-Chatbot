@@ -1,28 +1,23 @@
 # Streamlit UI
 # program-utama.py
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
-Gemini / Groq Image‑enabled Multi‑File Chatbot
+Gemini / Groq Image-enabled Multi-File Chatbot
 ================================================
-A Streamlit app that accepts PDFs, DOCX, PPTX, TXT **and** images, extracts text
-( OCR for images ), builds a FAISS vector store, and answers questions using
-Gemini or Groq’s Llama‑3.1‑405B‑Instruct.
+Streamlit app yang bisa menerima file PDF, DOCX, PPTX, TXT **dan** gambar,
+ekstraksi teks (OCR utk gambar), buat FAISS vector store, lalu jawab pertanyaan
+pakai Gemini atau Groq Llama-3.1-405B-Instruct.
 
-Author:  OpenAI‑ChatGPT
+Author: OpenAI-ChatGPT
 License: MIT
 """
 
 import os
 import io
-import base64
-from typing import List, Optional
-
 import streamlit as st
 from dotenv import load_dotenv
 from PIL import Image
 import easyocr
+import numpy as np
 
 # ---------------------------------
 # LangChain imports
@@ -52,7 +47,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not (GOOGLE_API_KEY or GROQ_API_KEY):
     st.error(
         "❌ **No LLM credentials found**.\n"
-        "Set either `GOOGLE_API_KEY` or `GROQ_API_KEY` in a `.env` file or Streamlit secrets."
+        "Set `GOOGLE_API_KEY` atau `GROQ_API_KEY` di `.env` atau Streamlit secrets."
     )
     st.stop()
 
@@ -62,20 +57,14 @@ if not (GOOGLE_API_KEY or GROQ_API_KEY):
 EMBEDDINGS = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 SPLITTER = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
 
-# OCR reader – only load once
-OCR_READER = easyocr.Reader(
-    ["en"],  # you can add other languages if needed
-    gpu=False,  # set True if you have a GPU and want faster OCR
-    verbose=False,
-)
+# OCR reader (load sekali)
+OCR_READER = easyocr.Reader(["en"], gpu=False, verbose=False)
 
 # ---------------------------------
 # File parsing helpers
 # ---------------------------------
 def extract_text_from_pdf(file_bytes: io.BytesIO) -> str:
-    """Extract text from PDF using PyPDF2."""
-    from PyPDF2 import PdfReader
-
+    from pypdf import PdfReader
     text = ""
     try:
         reader = PdfReader(file_bytes)
@@ -89,7 +78,6 @@ def extract_text_from_pdf(file_bytes: io.BytesIO) -> str:
 
 
 def extract_text_from_txt(file_bytes: io.BytesIO) -> str:
-    """Extract text from a plain text file."""
     try:
         return file_bytes.read().decode("utf-8", errors="ignore")
     except Exception as e:
@@ -98,9 +86,7 @@ def extract_text_from_txt(file_bytes: io.BytesIO) -> str:
 
 
 def extract_text_from_docx(file_bytes: io.BytesIO) -> str:
-    """Extract text from DOCX using python‑docx."""
     from docx import Document as DocxDocument
-
     text = ""
     try:
         file_bytes.seek(0)
@@ -114,13 +100,11 @@ def extract_text_from_docx(file_bytes: io.BytesIO) -> str:
 
 
 def extract_text_from_pptx(file_bytes: io.BytesIO) -> str:
-    """Extract text from PPTX using python‑pptx."""
-    from pptx import Presentation as PptxPresentation
-
+    from pptx import Presentation
     text = ""
     try:
         file_bytes.seek(0)
-        prs = PptxPresentation(file_bytes)
+        prs = Presentation(file_bytes)
         for slide in prs.slides:
             for shape in slide.shapes:
                 if hasattr(shape, "text") and shape.text:
@@ -131,16 +115,10 @@ def extract_text_from_pptx(file_bytes: io.BytesIO) -> str:
 
 
 def extract_text_from_image(file_bytes: io.BytesIO) -> str:
-    """OCR a single image file using EasyOCR."""
     try:
-        # read image with PIL
         image = Image.open(file_bytes).convert("RGB")
-        # convert to numpy array
-        import numpy as np
-
         img_np = np.array(image)
-        # OCR
-        results = OCR_READER.readtext(img_np, detail=0)  # detail=0 returns only text
+        results = OCR_READER.readtext(img_np, detail=0)
         return "\n".join(results)
     except Exception as e:
         st.warning(f"⚠️ Image OCR error: {e}")
@@ -148,7 +126,6 @@ def extract_text_from_image(file_bytes: io.BytesIO) -> str:
 
 
 def extract_text_from_file(uploaded_file) -> str:
-    """Dispatch to the right extractor based on file extension."""
     name = uploaded_file.name.lower()
     raw_bytes = uploaded_file.read()
     bio = io.BytesIO(raw_bytes)
@@ -171,9 +148,8 @@ def extract_text_from_file(uploaded_file) -> str:
 # ---------------------------------
 # Build documents and vector store
 # ---------------------------------
-def build_documents_from_uploads(uploaded_files: List[st.UploadedFile]) -> List[Document]:
-    """Return a list of LangChain Document objects for each chunk."""
-    docs: List[Document] = []
+def build_documents_from_uploads(uploaded_files):
+    docs = []
     for f in uploaded_files:
         text = extract_text_from_file(f)
         if not text or not text.strip():
@@ -189,8 +165,7 @@ def build_documents_from_uploads(uploaded_files: List[st.UploadedFile]) -> List[
     return docs
 
 
-def build_faiss_from_documents(docs: List[Document]) -> Optional[FAISS]:
-    """Create a FAISS vector store from the documents."""
+def build_faiss_from_documents(docs):
     if not docs:
         return None
     return FAISS.from_documents(docs, embedding=EMBEDDINGS)
@@ -199,18 +174,16 @@ def build_faiss_from_documents(docs: List[Document]) -> Optional[FAISS]:
 # ---------------------------------
 # Prompt helpers
 # ---------------------------------
-def format_context(snippets: List[Document]) -> str:
+def format_context(snippets):
     parts = []
     for idx, d in enumerate(snippets, start=1):
         src = d.metadata.get("source_file", "unknown")
         cid = d.metadata.get("chunk_id", "-")
-        parts.append(
-            f"[{idx}] ({src}#chunk-{cid})\n{d.page_content}"
-        )
+        parts.append(f"[{idx}] ({src}#chunk-{cid})\n{d.page_content}")
     return "\n\n---\n\n".join(parts)
 
 
-def render_sources(snippets: List[Document]):
+def render_sources(snippets):
     with st.expander("🔎 Sumber konteks yang dipakai"):
         for i, d in enumerate(snippets, start=1):
             src = d.metadata.get("source_file", "unknown")
@@ -224,7 +197,6 @@ def render_sources(snippets: List[Document]):
 # LLM helper
 # ---------------------------------
 def get_llm():
-    """Return a configured LLM wrapper based on available API key."""
     if GOOGLE_API_KEY and ChatGoogleGenerativeAI:
         return ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
@@ -246,147 +218,25 @@ def get_llm():
 # Streamlit UI
 # ---------------------------------
 st.set_page_config(
-    page_title="Gemini / Groq Image‑Chatbot – Multi‑File, OCR, FAISS",
+    page_title="Gemini / Groq Image-Chatbot – Multi-File, OCR, FAISS",
     page_icon="🤖",
     layout="wide",
 )
 
-st.title("🤖 Gemini / Groq Image‑Chatbot – Multi‑File, OCR, FAISS")
+st.title("🤖 Gemini / Groq Image-Chatbot – Multi-File, OCR, FAISS")
 st.markdown(
     """
-Upload any number of files (PDF, TXT, DOCX, PPTX, **BMP, PNG, JPG, JPEG, GIF, JFIF**).  
-The app will:
-1. **Extract** text (OCR for images)  
-2. **Chunk** the text  
-3. **Embed** & **index** with FAISS  
-4. **Answer** your questions using Gemini 2.5 Flash (Google) or Llama‑3.1‑405B‑Instruct (Groq)
+Upload file **PDF, TXT, DOCX, PPTX, BMP, PNG, JPG, JPEG, GIF, JFIF**.  
+Pipeline:
+1. **Extract** teks (OCR utk gambar)  
+2. **Chunk** teks  
+3. **Embed** & index FAISS  
+4. **Answer** pertanyaan via Gemini / Groq
 """
 )
 
-# Sidebar – file upload + build
+# Sidebar – upload
 st.sidebar.header("📂 Upload & Build")
 uploaded_files = st.sidebar.file_uploader(
-    "Upload files (pdf, txt, docx, pptx, bmp, png, jpg, jpeg, gif, jfif)",
-    type=[
-        "pdf",
-        "txt",
-        "docx",
-        "pptx",
-        "bmp",
-        "png",
-        "jpg",
-        "jpeg",
-        "gif",
-        "jfif",
-    ],
-    accept_multiple_files=True,
-)
-
-build_btn = st.sidebar.button("🚀 Build Vector Store")
-clear_btn = st.sidebar.button("🧹 Reset vector store")
-
-if "vector_store" not in st.session_state:
-    st.session_state.vector_store = None
-if "indexed_files" not in st.session_state:
-    st.session_state.indexed_files = []
-
-# Reset
-if clear_btn:
-    st.session_state.vector_store = None
-    st.session_state.indexed_files = []
-    st.sidebar.success("Vector store di‑reset.")
-
-# Build
-if build_btn:
-    if not uploaded_files:
-        st.sidebar.warning("Silakan upload minimal 1 file terlebih dahulu.")
-    else:
-        with st.spinner("📦 Memproses file & membuat vector store..."):
-            docs = build_documents_from_uploads(uploaded_files)
-            if not docs:
-                st.sidebar.error(
-                    "Tidak ada teks valid yang berhasil diekstrak. Pastikan file berisi teks atau gambar berisi teks."
-                )
-            else:
-                vs = build_faiss_from_documents(docs)
-                st.session_state.vector_store = vs
-                st.session_state.indexed_files = [f.name for f in uploaded_files]
-                st.sidebar.success(
-                    f"Vector store terbangun. Dokumen terindeks: {len(st.session_state.indexed_files)} | Chunk total: {len(docs)}"
-                )
-
-# Show indexed files
-if st.session_state.indexed_files:
-    st.markdown("**Dokumen terindeks:**")
-    st.write(" • " + "\n • ".join(st.session_state.indexed_files))
-
-# Query area
-st.subheader("🗣️ Tanya sesuatu...")
-prompt = st.text_input(
-    "Masukkan pertanyaan:",
-    placeholder="Contoh: Ringkas dokumen tentang X…",
-)
-ask_btn = st.button("Tanyakan")
-
-if ask_btn:
-    if not prompt or not prompt.strip():
-        st.warning("Masukkan pertanyaan terlebih dahulu.")
-    elif st.session_state.vector_store is None:
-        st.info(
-            "Belum ada vector store. Upload file dan klik **Build Vector Store** di sidebar."
-        )
-    else:
-        with st.spinner("🔎 Mencari konteks…"):
-            results = st.session_state.vector_store.similarity_search(prompt, k=5)
-
-        context_text = format_context(results)
-
-        # System instructions – keep same as original
-        system_instructions = (
-            "Jawablah seakurat dan sedetil mungkin sehingga mudah dipahami berdasarkan konteks berikut. "
-            "Jika jawaban tidak ada, katakan: "
-            "\"Jawaban tidak tersedia dalam konteks yang diberikan, "
-            "pelajari dan berikan tambahan informasi yang diperlukan sesuai konteks atau topik "
-            "yang ditanyakan dari berbagai sumber atau referensi di internet dengan menyertakan link website.\" "
-            "Sertakan referensi [angka] ke potongan konteks bila relevan."
-        )
-
-        composed_prompt = (
-            f"{system_instructions}\n\n"
-            f"=== KONTEX ===\n{context_text}\n\n"
-            f"=== PERTANYAAN ===\n{prompt}\n\n"
-            f"=== JAWABAN ==="
-        )
-
-        llm = get_llm()
-        if llm is None:
-            st.error("❌ LLM tidak dapat dipanggil.")
-        else:
-            try:
-                with st.spinner("🤖 Menjawab…"):
-                    response = llm.invoke(composed_prompt)
-
-                st.subheader("💬 Jawaban")
-                out_text = getattr(response, "content", None)
-                if not out_text:
-                    # fallback for newer langchain
-                    out_text = str(response)
-                st.write(out_text)
-
-                render_sources(results)
-
-            except Exception as e:
-                st.error(f"❌ Error saat memanggil LLM: {e}")
-
-# ---------------------------------
-# Footer
-# ---------------------------------
-st.markdown("---")
-st.markdown(
-    """
-**Disclaimer**  
-*The OCR quality depends on the image resolution. For best results, upload clear, high‑resolution images.*  
-*The answer is generated by a large language model and is not a substitute for professional advice.*
-"""
-)
-
+    "Upload files",
+    type=["p]()
