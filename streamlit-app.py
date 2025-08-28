@@ -1,4 +1,5 @@
 # app.py
+# app.py
 import os
 from io import BytesIO
 from typing import List, Optional
@@ -11,11 +12,10 @@ from PyPDF2 import PdfReader
 from docx import Document as DocxDocument
 from pptx import Presentation as PptxPresentation
 from PIL import Image
-
-# pdf images
 from pdf2image import convert_from_bytes
 
 # OCR pakai EasyOCR
+import numpy as np
 import easyocr
 
 # langchain
@@ -25,24 +25,15 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.chains import RetrievalQA
 
-# LLM wrappers
-try:
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    HAS_GOOGLE_G = True
-except Exception:
-    HAS_GOOGLE_G = False
-
-try:
-    from langchain.llms import LlamaCpp
-    HAS_LLAMA = True
-except Exception:
-    HAS_LLAMA = False
+# LLM clients
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-LLAMA_MODEL_PATH = os.getenv("LLAMA_MODEL_PATH")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-st.set_page_config(page_title="Gemini / LLaMA OCR Chatbot", layout="wide", page_icon="🤖")
+st.set_page_config(page_title="Gemini + Groq OCR Chatbot", layout="wide", page_icon="🤖")
 
 # ---------------------------------------------------------------------
 # Embeddings & splitter
@@ -54,7 +45,7 @@ SPLITTER = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
 # OCR via EasyOCR
 # ---------------------------------------------------------------------
 @st.cache_resource
-def get_easyocr_reader(lang="en"):
+def get_easyocr_reader(lang="eng"):
     langs = []
     if "eng" in lang: langs.append("en")
     if "ind" in lang: langs.append("id")
@@ -63,10 +54,8 @@ def get_easyocr_reader(lang="en"):
 
 def ocr_image_easyocr(image: Image.Image, lang="eng") -> str:
     reader = get_easyocr_reader(lang)
-    img_array = image.convert("RGB")
-    results = reader.readtext(np.array(img_array))
-    text = "\n".join([res[1] for res in results])
-    return text
+    results = reader.readtext(np.array(image))
+    return "\n".join([res[1] for res in results])
 
 # ---------------------------------------------------------------------
 # Extractors
@@ -76,18 +65,16 @@ def extract_text_from_pdf(file_bytes: bytes, ocr_lang="eng") -> str:
     try:
         reader = PdfReader(BytesIO(file_bytes))
         for page in reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
-    except Exception as e:
-        st.warning(f"PDF text extraction warning: {e}")
+            if page.extract_text():
+                text += page.extract_text() + "\n"
+    except Exception:
+        pass
 
     if not text.strip():
         try:
             images = convert_from_bytes(file_bytes, dpi=200)
             for img in images:
-                t = ocr_image_easyocr(img, lang=ocr_lang)
-                text += t + "\n"
+                text += ocr_image_easyocr(img, lang=ocr_lang) + "\n"
         except Exception as e:
             st.warning(f"PDF OCR failed: {e}")
     return text
@@ -99,47 +86,29 @@ def extract_text_from_txt(file_bytes: bytes) -> str:
         return file_bytes.decode("latin-1", errors="ignore")
 
 def extract_text_from_docx(file_bytes: bytes) -> str:
-    text = ""
-    try:
-        doc = DocxDocument(BytesIO(file_bytes))
-        for p in doc.paragraphs:
-            if p.text:
-                text += p.text + "\n"
-    except Exception as e:
-        st.warning(f"docx extraction error: {e}")
-    return text
+    doc = DocxDocument(BytesIO(file_bytes))
+    return "\n".join(p.text for p in doc.paragraphs if p.text)
 
 def extract_text_from_pptx(file_bytes: bytes) -> str:
-    text = ""
-    try:
-        prs = PptxPresentation(BytesIO(file_bytes))
-        for slide in prs.slides:
-            for shape in slide.shapes:
-                if hasattr(shape, "text") and shape.text:
-                    text += shape.text + "\n"
-    except Exception as e:
-        st.warning(f"pptx extraction error: {e}")
-    return text
+    prs = PptxPresentation(BytesIO(file_bytes))
+    texts = []
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if hasattr(shape, "text") and shape.text:
+                texts.append(shape.text)
+    return "\n".join(texts)
 
 def extract_text_from_image_bytes(file_bytes: bytes, lang="eng") -> str:
-    try:
-        img = Image.open(BytesIO(file_bytes)).convert("RGB")
-    except Exception as e:
-        st.warning(f"open image failed: {e}")
-        return ""
+    img = Image.open(BytesIO(file_bytes)).convert("RGB")
     return ocr_image_easyocr(img, lang=lang)
 
 def extract_text_from_file(uploaded_file, ocr_lang="eng") -> str:
     name = uploaded_file.name.lower()
     raw = uploaded_file.read()
-    if name.endswith(".pdf"):
-        return extract_text_from_pdf(raw, ocr_lang)
-    if name.endswith(".txt"):
-        return extract_text_from_txt(raw)
-    if name.endswith(".docx"):
-        return extract_text_from_docx(raw)
-    if name.endswith(".pptx"):
-        return extract_text_from_pptx(raw)
+    if name.endswith(".pdf"): return extract_text_from_pdf(raw, ocr_lang)
+    if name.endswith(".txt"): return extract_text_from_txt(raw)
+    if name.endswith(".docx"): return extract_text_from_docx(raw)
+    if name.endswith(".pptx"): return extract_text_from_pptx(raw)
     if name.endswith((".png",".jpg",".jpeg",".bmp",".jfif",".gif")):
         return extract_text_from_image_bytes(raw, lang=ocr_lang)
     st.warning(f"Tipe file {uploaded_file.name} tidak didukung.")
@@ -152,16 +121,14 @@ def build_documents_from_uploads(uploaded_files, ocr_lang="eng") -> List[Documen
     docs = []
     for f in uploaded_files:
         text = extract_text_from_file(f, ocr_lang=ocr_lang)
-        if not text.strip():
-            continue
-        chunks = SPLITTER.split_text(text)
-        for i, chunk in enumerate(chunks):
-            docs.append(Document(page_content=chunk, metadata={"source": f.name, "chunk_id": i}))
+        if text.strip():
+            chunks = SPLITTER.split_text(text)
+            for i, chunk in enumerate(chunks):
+                docs.append(Document(page_content=chunk, metadata={"source": f.name, "chunk": i}))
     return docs
 
 def build_faiss_from_documents(docs: List[Document]) -> Optional[FAISS]:
-    if not docs:
-        return None
+    if not docs: return None
     return FAISS.from_documents(docs, embedding=EMBEDDINGS)
 
 # ---------------------------------------------------------------------
@@ -169,29 +136,25 @@ def build_faiss_from_documents(docs: List[Document]) -> Optional[FAISS]:
 # ---------------------------------------------------------------------
 def get_llm(choice="gemini"):
     if choice == "gemini":
-        if not HAS_GOOGLE_G:
-            raise RuntimeError("langchain_google_genai tidak tersedia.")
         return ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
-    elif choice == "llama":
-        if not HAS_LLAMA or not LLAMA_MODEL_PATH:
-            raise RuntimeError("LLaMA belum terkonfigurasi.")
-        return LlamaCpp(model_path=LLAMA_MODEL_PATH, n_ctx=2048, temperature=0.2)
+    elif choice == "groq":
+        return ChatGroq(api_key=GROQ_API_KEY, model="llama3-70b-8192", temperature=0.2)
     else:
-        raise ValueError("Pilihan LLM tidak dikenal.")
+        raise ValueError("Pilih gemini atau groq.")
 
 # ---------------------------------------------------------------------
 # Streamlit UI
 # ---------------------------------------------------------------------
-st.title("🤖 Gemini / LLaMA OCR Multi-file Chatbot (EasyOCR + FAISS)")
+st.title("🤖 Gemini + Groq OCR Multi-file Chatbot (EasyOCR + FAISS)")
 
 with st.sidebar:
     uploaded_files = st.file_uploader(
-        "Upload multiple files",
+        "Upload files",
         type=["pdf","txt","docx","pptx","png","jpg","jpeg","bmp","jfif","gif"],
         accept_multiple_files=True
     )
     ocr_lang = st.selectbox("Bahasa OCR", ["eng","ind","eng+ind"], index=0)
-    llm_choice = st.selectbox("Pilih LLM", ["gemini","llama"])
+    llm_choice = st.selectbox("Pilih LLM", ["gemini","groq"])
     build_btn = st.button("🚀 Build Vector Store")
     clear_btn = st.button("🧹 Reset")
 
@@ -206,8 +169,7 @@ if build_btn:
     if uploaded_files:
         with st.spinner("Membangun vector store..."):
             docs = build_documents_from_uploads(uploaded_files, ocr_lang=ocr_lang)
-            vs = build_faiss_from_documents(docs)
-            st.session_state.vector_store = vs
+            st.session_state.vector_store = build_faiss_from_documents(docs)
         st.success("Vector store terbangun.")
     else:
         st.warning("Upload file dulu.")
@@ -215,7 +177,7 @@ if build_btn:
 query = st.text_input("Pertanyaan:")
 if st.button("Tanyakan"):
     if not query:
-        st.warning("Isi pertanyaan.")
+        st.warning("Isi pertanyaan dulu.")
     elif not st.session_state.vector_store:
         st.warning("Belum ada vector store.")
     else:
