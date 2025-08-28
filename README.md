@@ -1,4 +1,4 @@
-# Streamlit for Gemini Flash 2.5 Chatbot - Upload Multifiles and asking
+# Streamlit for Gemini Flash 2.5 Chatbot - Upload Multifiles, Build Vector Store and Asking
 
   ### app.py (Conversational Retrieval QA Chatbot)--> https://gemini-flash25-chatbot-uploadpdfs-and-asking.streamlit.app/
 
