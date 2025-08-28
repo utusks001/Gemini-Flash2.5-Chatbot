@@ -1,48 +1,54 @@
 # Load & split dokumen + OCR image
-# OCR dengan EasyOCR
+# OCR.space + File Parser
 # modules/loader.py
 
 from io import BytesIO
 from PIL import Image
-import easyocr
+import requests
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from docx import Document as DocxDocument
 from pptx import Presentation as PptxPresentation
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
+import streamlit as st
+import os
 
 splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
-ocr_reader = easyocr.Reader(['en', 'id'], gpu=False)
+OCRSPACE_API_KEY = os.getenv("OCRSPACE_API_KEY", "helloworld")
 
-def extract_text_from_image(file_bytes: BytesIO) -> str:
-    image = Image.open(file_bytes)
-    result = ocr_reader.readtext(image)
-    return "\n".join([text[1] for text in result])
+def ocr_with_ocrspace(image_bytes):
+    response = requests.post(
+        'https://api.ocr.space/parse/image',
+        files={'filename': image_bytes},
+        data={'apikey': OCRSPACE_API_KEY, 'language': 'eng'}
+    )
+    result = response.json()
+    return result['ParsedResults'][0]['ParsedText'] if 'ParsedResults' in result else ""
 
 def extract_text_from_file(uploaded_file) -> str:
     name = uploaded_file.name.lower()
     raw = uploaded_file.read()
     bio = BytesIO(raw)
 
-    if name.endswith(".pdf"):
-        text = ""
-        reader = PdfReader(bio)
-        for page in reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
-        return text
-    elif name.endswith(".txt"):
-        return raw.decode("utf-8", errors="ignore")
-    elif name.endswith(".docx"):
-        doc = DocxDocument(bio)
-        return "\n".join([p.text for p in doc.paragraphs])
-    elif name.endswith(".pptx"):
-        prs = PptxPresentation(bio)
-        return "\n".join([shape.text for slide in prs.slides for shape in slide.shapes if hasattr(shape, "text")])
-    elif name.endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif", ".jfif")):
-        return extract_text_from_image(bio)
-    else:
+    try:
+        if name.endswith(".pdf"):
+            reader = PdfReader(bio)
+            return "\n".join([p.extract_text() or "" for p in reader.pages])
+        elif name.endswith(".txt"):
+            return raw.decode("utf-8", errors="ignore")
+        elif name.endswith(".docx"):
+            doc = DocxDocument(bio)
+            return "\n".join([p.text for p in doc.paragraphs])
+        elif name.endswith(".pptx"):
+            prs = PptxPresentation(bio)
+            return "\n".join([shape.text for slide in prs.slides for shape in slide.shapes if hasattr(shape, "text")])
+        elif name.endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif", ".jfif")):
+            return ocr_with_ocrspace(raw)
+        else:
+            st.warning(f"⚠️ Format tidak didukung: {uploaded_file.name}")
+            return ""
+    except Exception as e:
+        st.warning(f"⚠️ Gagal ekstrak {uploaded_file.name}: {e}")
         return ""
 
 def build_documents_from_uploads(uploaded_files):
@@ -55,9 +61,3 @@ def build_documents_from_uploads(uploaded_files):
         for i, chunk in enumerate(chunks):
             docs.append(Document(page_content=chunk, metadata={"source_file": f.name, "chunk_id": i}))
     return docs
-
-def preview_image_and_ocr(uploaded_file):
-    image = Image.open(uploaded_file)
-    result = ocr_reader.readtext(image)
-    text = "\n".join([text[1] for text in result])
-    return image, text
