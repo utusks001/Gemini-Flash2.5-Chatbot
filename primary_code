@@ -1,0 +1,34 @@
+# Streamlit UI
+import streamlit as st
+from modules.loader import build_documents_from_uploads
+from modules.embedder import build_faiss_from_documents
+from modules.model import load_llm
+from modules.retriever import get_retriever
+from modules.chain import build_qa_chain
+
+st.set_page_config(page_title="Chatbot Properti OCR", layout="wide")
+st.title("📸 Chatbot Properti — Multi-file + OCR")
+
+uploaded_files = st.sidebar.file_uploader(
+    "Upload file (PDF, DOCX, PPTX, TXT, PNG, JPG, BMP, GIF, JFIF)",
+    type=["pdf", "docx", "pptx", "txt", "png", "jpg", "jpeg", "bmp", "gif", "jfif"],
+    accept_multiple_files=True
+)
+
+provider = st.sidebar.selectbox("Pilih LLM", ["gemini", "groq", "llama"])
+build_btn = st.sidebar.button("🚀 Build Vector Store")
+
+if build_btn and uploaded_files:
+    docs = build_documents_from_uploads(uploaded_files)
+    vector_db = build_faiss_from_documents(docs)
+    retriever = get_retriever(vector_db)
+    llm = load_llm(provider)
+    qa_chain = build_qa_chain(llm, retriever)
+    st.session_state.qa_chain = qa_chain
+    st.success(f"✅ Vector store terbangun dari {len(docs)} chunk.")
+
+query = st.text_input("Tanyakan sesuatu berdasarkan dokumen yang diupload:")
+if st.button("Tanyakan") and query and "qa_chain" in st.session_state:
+    result = st.session_state.qa_chain(query)
+    st.subheader("💬 Jawaban")
+    st.write(result["result"])
