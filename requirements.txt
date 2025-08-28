@@ -1,5 +1,5 @@
 streamlit
-langchain
+langchain>=0.1.13
 chromadb
 transformers
 sentence-transformers
@@ -11,3 +11,4 @@ reportlab
 requests
 langchain-google-genai
 langchain-groq
+langchain-community
