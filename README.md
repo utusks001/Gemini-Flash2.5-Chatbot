@@ -1,6 +1,6 @@
 # Streamlit for Gemini Flash 2.5 Chatbot - Upload Multi-files, Build Vector Store and Asking
 
-  ### app-streamlit.py (Gemini 2.5 Flash Chatbot — Multi-file (PDF/TXT/DOCX/PPTX)) --> https://gemini-flash25-chatbot-unggahpdf-file.streamlit.app/
+  ### app-streamlit.py (Gemini 2.5 Flash Chatbot — Multi-file (PDF/TXT/DOCX/PPTX)) --> (https://gemini-flash25-chatbot-unggahpdf-file.streamlit.app/)
 
 
 # 💬 Gemini PDF Chatbot
