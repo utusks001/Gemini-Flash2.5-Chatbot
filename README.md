@@ -26,7 +26,7 @@ Chatbot berbasis [Gemini 2.5 Flash](https://makersuite.google.com/) yang memungk
 # Setup & Installation
 
 ## 1. Clone atau download repostiroy ini
-git clone https://github.com/mazprimrez/sic6-chatbot-with-streamlit.git
+git clone https://github.com/utusks001/Gemini-Flash2.5-Chatbot.git
 cd Gemini-Flash2.5-Chatbot
 
 ## 2. Install Dependencies:
