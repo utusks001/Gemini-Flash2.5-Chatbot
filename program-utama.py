@@ -63,7 +63,7 @@ OCR_READER = easyocr.Reader(["en"], gpu=False, verbose=False)
 # ---------------------------------
 # File parsing helpers
 # ---------------------------------
-def extract_text_from_pdf(file_bytes: io.BytesIO) -> str:
+def extract_text_from_pdf(file_bytes):
     from pypdf import PdfReader
     text = ""
     try:
@@ -77,7 +77,7 @@ def extract_text_from_pdf(file_bytes: io.BytesIO) -> str:
     return text
 
 
-def extract_text_from_txt(file_bytes: io.BytesIO) -> str:
+def extract_text_from_txt(file_bytes):
     try:
         return file_bytes.read().decode("utf-8", errors="ignore")
     except Exception as e:
@@ -85,7 +85,7 @@ def extract_text_from_txt(file_bytes: io.BytesIO) -> str:
         return ""
 
 
-def extract_text_from_docx(file_bytes: io.BytesIO) -> str:
+def extract_text_from_docx(file_bytes):
     from docx import Document as DocxDocument
     text = ""
     try:
@@ -99,7 +99,7 @@ def extract_text_from_docx(file_bytes: io.BytesIO) -> str:
     return text
 
 
-def extract_text_from_pptx(file_bytes: io.BytesIO) -> str:
+def extract_text_from_pptx(file_bytes):
     from pptx import Presentation
     text = ""
     try:
@@ -114,7 +114,7 @@ def extract_text_from_pptx(file_bytes: io.BytesIO) -> str:
     return text
 
 
-def extract_text_from_image(file_bytes: io.BytesIO) -> str:
+def extract_text_from_image(file_bytes):
     try:
         image = Image.open(file_bytes).convert("RGB")
         img_np = np.array(image)
@@ -125,7 +125,7 @@ def extract_text_from_image(file_bytes: io.BytesIO) -> str:
         return ""
 
 
-def extract_text_from_file(uploaded_file) -> str:
+def extract_text_from_file(uploaded_file):
     name = uploaded_file.name.lower()
     raw_bytes = uploaded_file.read()
     bio = io.BytesIO(raw_bytes)
@@ -239,4 +239,96 @@ Pipeline:
 st.sidebar.header("📂 Upload & Build")
 uploaded_files = st.sidebar.file_uploader(
     "Upload files",
-    type=["p]()
+    type=["pdf", "txt", "docx", "pptx", "bmp", "png", "jpg", "jpeg", "gif", "jfif"],
+    accept_multiple_files=True,
+)
+
+build_btn = st.sidebar.button("🚀 Build Vector Store")
+clear_btn = st.sidebar.button("🧹 Reset vector store")
+
+if "vector_store" not in st.session_state:
+    st.session_state.vector_store = None
+if "indexed_files" not in st.session_state:
+    st.session_state.indexed_files = []
+
+if clear_btn:
+    st.session_state.vector_store = None
+    st.session_state.indexed_files = []
+    st.sidebar.success("Vector store di-reset.")
+
+if build_btn:
+    if not uploaded_files:
+        st.sidebar.warning("Silakan upload minimal 1 file dahulu.")
+    else:
+        with st.spinner("📦 Memproses file & membuat vector store..."):
+            docs = build_documents_from_uploads(uploaded_files)
+            if not docs:
+                st.sidebar.error("Tidak ada teks valid dari file.")
+            else:
+                vs = build_faiss_from_documents(docs)
+                st.session_state.vector_store = vs
+                st.session_state.indexed_files = [f.name for f in uploaded_files]
+                st.sidebar.success(
+                    f"Vector store terbangun ✅ Dokumen: {len(st.session_state.indexed_files)} | Chunk: {len(docs)}"
+                )
+
+if st.session_state.indexed_files:
+    st.markdown("**Dokumen terindeks:**")
+    st.write(" • " + "\n • ".join(st.session_state.indexed_files))
+
+# Query
+st.subheader("🗣️ Tanya sesuatu...")
+prompt = st.text_input("Pertanyaan:", placeholder="Contoh: Ringkas isi dokumen...")
+ask_btn = st.button("Tanyakan")
+
+if ask_btn:
+    if not prompt.strip():
+        st.warning("Masukkan pertanyaan terlebih dahulu.")
+    elif st.session_state.vector_store is None:
+        st.info("Belum ada vector store. Upload file + Build Vector Store dulu.")
+    else:
+        with st.spinner("🔎 Mencari konteks…"):
+            results = st.session_state.vector_store.similarity_search(prompt, k=5)
+
+        context_text = format_context(results)
+        system_instructions = (
+            "Jawablah seakurat dan sedetil mungkin berdasarkan konteks berikut. "
+            "Jika jawaban tidak ada, katakan: "
+            "\"Jawaban tidak tersedia dalam konteks yang diberikan, "
+            "tambahkan informasi dari internet dengan link.\" "
+            "Sertakan referensi [angka] jika relevan."
+        )
+
+        composed_prompt = (
+            f"{system_instructions}\n\n"
+            f"=== KONTEX ===\n{context_text}\n\n"
+            f"=== PERTANYAAN ===\n{prompt}\n\n"
+            f"=== JAWABAN ==="
+        )
+
+        llm = get_llm()
+        if llm is None:
+            st.error("❌ LLM tidak bisa dipanggil.")
+        else:
+            try:
+                with st.spinner("🤖 Menjawab…"):
+                    response = llm.invoke(composed_prompt)
+
+                st.subheader("💬 Jawaban")
+                out_text = getattr(response, "content", None) or str(response)
+                st.write(out_text)
+
+                render_sources(results)
+
+            except Exception as e:
+                st.error(f"❌ Error saat memanggil LLM: {e}")
+
+# Footer
+st.markdown("---")
+st.markdown(
+    """
+**Disclaimer**  
+OCR bergantung pada resolusi gambar.  
+Jawaban dihasilkan LLM, bukan pengganti saran profesional.
+"""
+)
