@@ -1,6 +1,5 @@
 # Streamlit UI
 # app.py
-
 import streamlit as st
 from modules.loader import build_documents_from_uploads, preview_image_and_ocr
 from modules.embedder import build_faiss_from_documents
@@ -8,6 +7,9 @@ from modules.model import load_llm
 from modules.retriever import get_retriever
 from modules.chain import build_qa_chain
 from modules.pdf_export import export_answer_to_pdf
+from io import BytesIO
+from PIL import Image
+import easyocr
 
 st.set_page_config(page_title="Chatbot Properti OCR", layout="wide")
 st.title("📸 Chatbot Listing Properti — Multi-file + OCR")
