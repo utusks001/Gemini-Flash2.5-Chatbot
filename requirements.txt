@@ -1,5 +1,5 @@
 streamlit
-langchain>=0.1.13
+langchain
 transformers
 sentence-transformers
 python-docx
@@ -17,11 +17,12 @@ langchain-chroma
 langchain-huggingface
 pypdf2
 faiss-cpu
-easyocr
 PyPDF2
+torch
+torchvision
+torchaudio
 pdf2image
 easyocr
 torch
 torchvision
 torchaudio
-llama-cpp-python
