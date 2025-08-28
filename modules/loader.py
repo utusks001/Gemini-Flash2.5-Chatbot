@@ -49,7 +49,8 @@ def build_documents_from_uploads(uploaded_files):
         for i, chunk in enumerate(chunks):
             docs.append(Document(page_content=chunk, metadata={"source_file": f.name, "chunk_id": i}))
     return docs
-
+    
+# Preview Gambar + OCR
 def preview_image_and_ocr(uploaded_file):
     from PIL import Image
     import pytesseract
