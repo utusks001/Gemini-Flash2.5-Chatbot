@@ -1,4 +1,4 @@
-# Pilih LLM (Gemini, GROQ, LLaMA)
+# Pilih Model LLM (Gemini, GROQ, LLaMA)
 # Load Gemini, GROQ, atau LLaMA
 import os
 from dotenv import load_dotenv
