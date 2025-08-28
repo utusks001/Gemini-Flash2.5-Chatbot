@@ -12,3 +12,4 @@ langchain-community
 sentence-transformers
 faiss-cpu
 llama-cpp-python
+chromadb
