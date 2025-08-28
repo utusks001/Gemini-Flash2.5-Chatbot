@@ -4,9 +4,10 @@ pillow
 PyPDF2
 python-docx
 python-pptx
-langchain
-faiss-cpu
 requests
-langchain-google-genai
-langchain-groq
-langchain-community
+faiss-cpu==1.7.4
+langchain==0.2.12
+langchain-core==0.2.29
+langchain-community==0.2.11
+langchain-google-genai==0.0.12
+langchain-groq==0.0.6
