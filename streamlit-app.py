@@ -17,57 +17,22 @@ from langchain.schema import Document
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
 
 # -------------------------
 # Config / env
 # -------------------------
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 st.set_page_config(
-    page_title="Gemini & Groq Multi-file Chatbot (FAISS)",
+    page_title="Gemini Multi-file Chatbot (FAISS)",
     page_icon="🤖",
     layout="wide"
 )
 
-# -------------------------
-# Model Selector
-# -------------------------
-model_choices = {
-    "Gemini 2.5 Flash": {"key": GOOGLE_API_KEY, "model": "gemini-2.5-flash"},
-    "Groq (Llama3 70B)": {"key": GROQ_API_KEY, "model": "llama3-70b-8192"},
-    "Groq (Llama3 8B)": {"key": GROQ_API_KEY, "model": "llama3-8b-8192"},
-}
-
-# Add selectbox for model choice in the sidebar
-st.sidebar.header("⚙️ Konfigurasi LLM")
-selected_model_name = st.sidebar.selectbox(
-    "Pilih LLM Model:",
-    list(model_choices.keys())
-)
-
-selected_model_info = model_choices[selected_model_name]
-api_key = selected_model_info["key"]
-model_id = selected_model_info["model"]
-
-if not api_key:
-    st.error(f"❌ Kunci API untuk {selected_model_name} tidak ditemukan. Tambahkan ke file .env sebelum menjalankan.")
+if not GOOGLE_API_KEY:
+    st.error("❌ GOOGLE_API_KEY tidak ditemukan. Tambahkan ke file .env sebelum menjalankan.")
     st.stop()
-
-# -------------------------
-# LLM Function
-# -------------------------
-def get_llm(model_name: str):
-    """Returns the appropriate LLM instance based on the user's choice."""
-    if "Gemini" in model_name:
-        return ChatGoogleGenerativeAI(model=model_id, temperature=0.2)
-    elif "Groq" in model_name:
-        return ChatGroq(temperature=0.2, groq_api_key=api_key, model_name=model_id)
-    else:
-        st.error("Model tidak dikenali.")
-        return None
 
 # Embeddings (HuggingFace yang stabil di Streamlit Cloud)
 EMBEDDINGS = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
@@ -90,12 +55,14 @@ def extract_text_from_pdf(file_bytes: BytesIO) -> str:
         st.warning(f"⚠️ Gagal ekstrak PDF: {e}")
     return text
 
+
 def extract_text_from_txt(file_bytes: BytesIO) -> str:
     try:
         return file_bytes.read().decode("utf-8", errors="ignore")
     except Exception as e:
         st.warning(f"⚠️ Gagal baca TXT: {e}")
         return ""
+
 
 def extract_text_from_docx(file_bytes: BytesIO) -> str:
     text = ""
@@ -109,6 +76,7 @@ def extract_text_from_docx(file_bytes: BytesIO) -> str:
         st.warning(f"⚠️ Gagal ekstrak DOCX: {e}")
     return text
 
+
 def extract_text_from_pptx(file_bytes: BytesIO) -> str:
     text = ""
     try:
@@ -121,6 +89,7 @@ def extract_text_from_pptx(file_bytes: BytesIO) -> str:
     except Exception as e:
         st.warning(f"⚠️ Gagal ekstrak PPTX: {e}")
     return text
+
 
 def extract_text_from_file(uploaded_file) -> str:
     """Best-effort generic extractor"""
@@ -157,6 +126,7 @@ def build_documents_from_uploads(uploaded_files) -> List[Document]:
             docs.append(Document(page_content=chunk, metadata={"source_file": f.name, "chunk_id": i}))
     return docs
 
+
 def build_faiss_from_documents(docs: List[Document]) -> FAISS | None:
     if not docs:
         return None
@@ -174,6 +144,7 @@ def format_context(snippets: List[Document]) -> str:
         parts.append(f"[{idx}] ({src}#chunk-{cid})\n{d.page_content}")
     return "\n\n---\n\n".join(parts)
 
+
 def render_sources(snippets: List[Document]):
     with st.expander("🔎 Sumber konteks yang dipakai"):
         for i, d in enumerate(snippets, start=1):
@@ -186,7 +157,7 @@ def render_sources(snippets: List[Document]):
 # -------------------------
 # Streamlit UI
 # -------------------------
-st.title("🤖 Gemini & Groq Chatbot — Multi-files, Build Vector Store and Asking")
+st.title("🤖 Gemini 2.5 Flash Chatbot — Multi-files, Build Vector Store and Asking")
 st.write("Upload banyak file (PDF, TXT, DOCX, PPTX). Untuk .doc/.ppt (format lama), silakan convert ke .docx/.pptx jika ekstraksi kosong.")
 
 # Sidebar
@@ -261,16 +232,17 @@ if ask_btn:
             f"=== JAWABAN ==="
         )
 
-        llm = get_llm(selected_model_name)
-        if llm:
-            try:
-                with st.spinner(f"🤖 {selected_model_name} sedang menjawab..."):
-                    response = llm.invoke(composed_prompt)
-                st.subheader("💬 Jawaban")
-                out_text = getattr(response, "content", None) or (
-                    response.candidates[0].content if getattr(response, "candidates", None) else str(response)
-                )
-                st.write(out_text)
-                render_sources(results)
-            except Exception as e:
-                st.error(f"❌ Error saat memanggil {selected_model_name}: {e}")
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
+        try:
+            with st.spinner("🤖 Gemini sedang menjawab..."):
+                response = llm.invoke(composed_prompt)
+
+            st.subheader("💬 Jawaban")
+            out_text = getattr(response, "content", None) or (
+                response.candidates[0].content if getattr(response, "candidates", None) else str(response)
+            )
+            st.write(out_text)
+            render_sources(results)
+
+        except Exception as e:
+            st.error(f"❌ Error saat memanggil Gemini: {e}")
