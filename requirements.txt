@@ -7,3 +7,4 @@ python-pptx
 langchain
 faiss-cpu
 langchain-google-genai
+requests
