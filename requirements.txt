@@ -1,6 +1,5 @@
 streamlit
 langchain>=0.1.13
-chromadb
 transformers
 sentence-transformers
 python-docx
