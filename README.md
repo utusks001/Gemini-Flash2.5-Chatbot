@@ -33,7 +33,7 @@ pip install -r requirements.txt
 //Make sure you have Python 3.7+ installed.
 
 ## 3. Set Environment Variables: buat file dengan nama .env kemudian isi file tersebut dengan API Keys sebagai berikut Example:
-GROQ_API_KEY = "GROQQ API KEY"
+GROQ_API_KEY = "GROQQ API KEY"/n
 GOOGLE_API_KEY = "GOOGLE API KEY"
 
 ## 4. Run Streamlit di local
