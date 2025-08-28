@@ -24,13 +24,11 @@ python-docx
 python-pptx
 
 # OCR & Images
-easyocr
 Pillow
-numpy
 pillow
 pytesseract
 
 # Utils
 requests
-
-
+numpy
+panda
