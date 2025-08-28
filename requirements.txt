@@ -6,6 +6,7 @@ python-docx
 python-pptx
 langchain
 faiss-cpu
-langchain-google-genai
 requests
+langchain-google-genai
 langchain-groq
+langchain-community
