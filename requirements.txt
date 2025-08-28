@@ -27,4 +27,6 @@ langchain-google-genai
 langchain-groq
 faiss-cpu
 sentence-transformers
+docx2txt
+
 
