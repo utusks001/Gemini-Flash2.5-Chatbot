@@ -13,7 +13,6 @@ langchain-google-genai
 langchain-groq
 google-generativeai
 faiss-cpu
-faiss-gpu
 sentence-transformers
 pypdf
 unstructured
@@ -26,3 +25,4 @@ streamlit
 langchain
 chromadb
 easyocr
+torch==2.0.1
