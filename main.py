@@ -32,6 +32,32 @@ st.set_page_config(
 )
 
 # -------------------------
+# Helper untuk update .env
+# -------------------------
+def update_env_file(key_name: str, key_value: str):
+    """Update atau tambahkan API key di file .env"""
+    env_path = ".env"
+    lines = []
+    if os.path.exists(env_path):
+        with open(env_path, "r") as f:
+            lines = f.readlines()
+
+    found = False
+    for i, line in enumerate(lines):
+        if line.startswith(f"{key_name}="):
+            lines[i] = f"{key_name}={key_value}\n"
+            found = True
+            break
+
+    if not found:
+        lines.append(f"{key_name}={key_value}\n")
+
+    with open(env_path, "w") as f:
+        f.writelines(lines)
+
+    os.environ[key_name] = key_value
+
+# -------------------------
 # Fungsi cek validitas API key
 # -------------------------
 def check_google_api_key(key: str) -> bool:
@@ -74,7 +100,6 @@ if "groq_invalid" not in st.session_state:
 valid_google = check_google_api_key(GOOGLE_API_KEY)
 valid_groq = check_groq_api_key(GROQ_API_KEY)
 
-# Flag invalid jika gagal validasi
 if not valid_google:
     st.session_state["google_invalid"] = True
 if not valid_groq:
@@ -97,7 +122,8 @@ if st.session_state["google_invalid"] or st.session_state["groq_invalid"]:
         if GOOGLE_API_KEY_INPUT.strip():
             GOOGLE_API_KEY = GOOGLE_API_KEY_INPUT.strip()
             if check_google_api_key(GOOGLE_API_KEY):
-                st.sidebar.success("✅ GOOGLE_API_KEY baru valid.")
+                update_env_file("GOOGLE_API_KEY", GOOGLE_API_KEY)
+                st.sidebar.success("✅ GOOGLE_API_KEY baru valid dan sudah disimpan ke .env.")
                 st.session_state["google_invalid"] = False
             else:
                 st.sidebar.error("❌ GOOGLE_API_KEY masih tidak valid.")
@@ -113,7 +139,8 @@ if st.session_state["google_invalid"] or st.session_state["groq_invalid"]:
         if GROQ_API_KEY_INPUT.strip():
             GROQ_API_KEY = GROQ_API_KEY_INPUT.strip()
             if check_groq_api_key(GROQ_API_KEY):
-                st.sidebar.success("✅ GROQ_API_KEY baru valid.")
+                update_env_file("GROQ_API_KEY", GROQ_API_KEY)
+                st.sidebar.success("✅ GROQ_API_KEY baru valid dan sudah disimpan ke .env.")
                 st.session_state["groq_invalid"] = False
             else:
                 st.sidebar.error("❌ GROQ_API_KEY masih tidak valid.")
