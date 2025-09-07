@@ -61,31 +61,36 @@ def check_groq_api_key(key: str) -> bool:
         return False
 
 # -------------------------
-# Validasi API Key
+# Validasi API Key dari .env
 # -------------------------
 valid_google = check_google_api_key(GOOGLE_API_KEY)
 valid_groq = check_groq_api_key(GROQ_API_KEY)
 
-# Jika tidak valid → minta input di sidebar
-if not (valid_google or valid_groq):
+# -------------------------
+# Sidebar input hanya jika invalid/kosong
+# -------------------------
+if not valid_google or not valid_groq:
     st.sidebar.header("🔑 API Keys")
 
-    GOOGLE_API_KEY_INPUT = st.sidebar.text_input(
-        "Masukkan GOOGLE_API_KEY (Gemini)", type="password", value=""
-    )
-    GROQ_API_KEY_INPUT = st.sidebar.text_input(
-        "Masukkan GROQ_API_KEY (Groq)", type="password", value=""
-    )
+    if not valid_google:
+        GOOGLE_API_KEY_INPUT = st.sidebar.text_input(
+            "Masukkan GOOGLE_API_KEY (Gemini)", type="password", value=""
+        )
+        if GOOGLE_API_KEY_INPUT.strip():
+            GOOGLE_API_KEY = GOOGLE_API_KEY_INPUT.strip()
+            valid_google = check_google_api_key(GOOGLE_API_KEY)
 
-    if GOOGLE_API_KEY_INPUT.strip():
-        GOOGLE_API_KEY = GOOGLE_API_KEY_INPUT.strip()
-        valid_google = check_google_api_key(GOOGLE_API_KEY)
+    if not valid_groq:
+        GROQ_API_KEY_INPUT = st.sidebar.text_input(
+            "Masukkan GROQ_API_KEY (Groq)", type="password", value=""
+        )
+        if GROQ_API_KEY_INPUT.strip():
+            GROQ_API_KEY = GROQ_API_KEY_INPUT.strip()
+            valid_groq = check_groq_api_key(GROQ_API_KEY)
 
-    if GROQ_API_KEY_INPUT.strip():
-        GROQ_API_KEY = GROQ_API_KEY_INPUT.strip()
-        valid_groq = check_groq_api_key(GROQ_API_KEY)
-
-# Jika tetap tidak valid → hentikan
+# -------------------------
+# Hentikan jika tidak ada key valid
+# -------------------------
 if not (valid_google or valid_groq):
     st.error("❌ Tidak ada API Key valid. Tambahkan di .env atau input di sidebar.")
     st.stop()
