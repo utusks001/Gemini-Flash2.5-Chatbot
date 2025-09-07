@@ -73,20 +73,32 @@ if not valid_google or not valid_groq:
     st.sidebar.header("🔑 API Keys")
 
     if not valid_google:
+        if not GOOGLE_API_KEY:
+            st.sidebar.warning("⚠️ GOOGLE_API_KEY belum diisi atau kosong.")
+        else:
+            st.sidebar.error("❌ GOOGLE_API_KEY tidak valid atau sudah expired.")
         GOOGLE_API_KEY_INPUT = st.sidebar.text_input(
             "Masukkan GOOGLE_API_KEY (Gemini)", type="password", value=""
         )
         if GOOGLE_API_KEY_INPUT.strip():
             GOOGLE_API_KEY = GOOGLE_API_KEY_INPUT.strip()
             valid_google = check_google_api_key(GOOGLE_API_KEY)
+            if valid_google:
+                st.sidebar.success("✅ GOOGLE_API_KEY baru valid.")
 
     if not valid_groq:
+        if not GROQ_API_KEY:
+            st.sidebar.warning("⚠️ GROQ_API_KEY belum diisi atau kosong.")
+        else:
+            st.sidebar.error("❌ GROQ_API_KEY tidak valid atau sudah expired.")
         GROQ_API_KEY_INPUT = st.sidebar.text_input(
             "Masukkan GROQ_API_KEY (Groq)", type="password", value=""
         )
         if GROQ_API_KEY_INPUT.strip():
             GROQ_API_KEY = GROQ_API_KEY_INPUT.strip()
             valid_groq = check_groq_api_key(GROQ_API_KEY)
+            if valid_groq:
+                st.sidebar.success("✅ GROQ_API_KEY baru valid.")
 
 # -------------------------
 # Hentikan jika tidak ada key valid
