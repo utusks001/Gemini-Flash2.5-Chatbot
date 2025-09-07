@@ -61,49 +61,67 @@ def check_groq_api_key(key: str) -> bool:
         return False
 
 # -------------------------
-# Validasi API Key dari .env
+# Simpan status invalid di session_state
+# -------------------------
+if "google_invalid" not in st.session_state:
+    st.session_state["google_invalid"] = False
+if "groq_invalid" not in st.session_state:
+    st.session_state["groq_invalid"] = False
+
+# -------------------------
+# Validasi awal API Key dari .env
 # -------------------------
 valid_google = check_google_api_key(GOOGLE_API_KEY)
 valid_groq = check_groq_api_key(GROQ_API_KEY)
 
+# Flag invalid jika gagal validasi
+if not valid_google:
+    st.session_state["google_invalid"] = True
+if not valid_groq:
+    st.session_state["groq_invalid"] = True
+
 # -------------------------
-# Sidebar input hanya jika invalid/kosong
+# Sidebar input hanya untuk key invalid
 # -------------------------
-if not valid_google or not valid_groq:
+if st.session_state["google_invalid"] or st.session_state["groq_invalid"]:
     st.sidebar.header("🔑 API Keys")
 
-    if not valid_google:
+    if st.session_state["google_invalid"]:
         if not GOOGLE_API_KEY:
             st.sidebar.warning("⚠️ GOOGLE_API_KEY belum diisi atau kosong.")
         else:
-            st.sidebar.error("❌ GOOGLE_API_KEY tidak valid atau sudah expired. Buat API KEY baru pada https://aistudio.google.com/apikey")
+            st.sidebar.error("❌ GOOGLE_API_KEY tidak valid atau sudah expired. Buat GOOGLE API KEY baru pada https://aistudio.google.com/apikey dan copy paste")
         GOOGLE_API_KEY_INPUT = st.sidebar.text_input(
             "Masukkan GOOGLE_API_KEY (Gemini)", type="password", value=""
         )
         if GOOGLE_API_KEY_INPUT.strip():
             GOOGLE_API_KEY = GOOGLE_API_KEY_INPUT.strip()
-            valid_google = check_google_api_key(GOOGLE_API_KEY)
-            if valid_google:
+            if check_google_api_key(GOOGLE_API_KEY):
                 st.sidebar.success("✅ GOOGLE_API_KEY baru valid.")
+                st.session_state["google_invalid"] = False
+            else:
+                st.sidebar.error("❌ GOOGLE_API_KEY masih tidak valid.")
 
-    if not valid_groq:
+    if st.session_state["groq_invalid"]:
         if not GROQ_API_KEY:
             st.sidebar.warning("⚠️ GROQ_API_KEY belum diisi atau kosong.")
         else:
-            st.sidebar.error("❌ GROQ_API_KEY tidak valid atau sudah expired. Buat API KEY baru pada https://console.groq.com/keys")
+            st.sidebar.error("❌ GROQ_API_KEY tidak valid atau sudah expired. Buat GROQ API KEY baru pada https://console.groq.com/keys dan copy paste")
         GROQ_API_KEY_INPUT = st.sidebar.text_input(
             "Masukkan GROQ_API_KEY (Groq)", type="password", value=""
         )
         if GROQ_API_KEY_INPUT.strip():
             GROQ_API_KEY = GROQ_API_KEY_INPUT.strip()
-            valid_groq = check_groq_api_key(GROQ_API_KEY)
-            if valid_groq:
+            if check_groq_api_key(GROQ_API_KEY):
                 st.sidebar.success("✅ GROQ_API_KEY baru valid.")
+                st.session_state["groq_invalid"] = False
+            else:
+                st.sidebar.error("❌ GROQ_API_KEY masih tidak valid.")
 
 # -------------------------
-# Hentikan jika tidak ada key valid
+# Stop jika tidak ada key valid
 # -------------------------
-if not (valid_google or valid_groq):
+if st.session_state["google_invalid"] and st.session_state["groq_invalid"]:
     st.error("❌ Tidak ada API Key valid. Tambahkan di .env atau input di sidebar.")
     st.stop()
 
@@ -364,4 +382,12 @@ if ask_btn:
             render_sources(results)
 
         except Exception as e:
-            st.error(f"❌ Error saat memanggil LLM: {e}")
+            if "401" in str(e) and "Invalid API Key" in str(e):
+                if model_choice.startswith("Gemini"):
+                    st.session_state["google_invalid"] = True
+                    st.error("❌ GOOGLE_API_KEY invalid. Silakan masukkan ulang di sidebar.")
+                else:
+                    st.session_state["groq_invalid"] = True
+                    st.error("❌ GROQ_API_KEY invalid. Silakan masukkan ulang di sidebar.")
+            else:
+                st.error(f"❌ Error saat memanggil LLM: {e}")
