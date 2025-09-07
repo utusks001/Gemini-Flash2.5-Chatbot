@@ -115,35 +115,29 @@ if st.session_state["google_invalid"] or st.session_state["groq_invalid"]:
         if not GOOGLE_API_KEY:
             st.sidebar.warning("⚠️ GOOGLE_API_KEY belum diisi atau kosong.")
         else:
-            st.sidebar.error("❌ GOOGLE_API_KEY tidak valid atau sudah expired. Buat GOOGLE API KEY baru pada https://aistudio.google.com/apikey dan copy paste")
+            st.sidebar.error("❌ GOOGLE_API_KEY tidak valid atau sudah expired.")
         GOOGLE_API_KEY_INPUT = st.sidebar.text_input(
             "Masukkan GOOGLE_API_KEY (Gemini)", type="password", value=""
         )
         if GOOGLE_API_KEY_INPUT.strip():
             GOOGLE_API_KEY = GOOGLE_API_KEY_INPUT.strip()
-            if check_google_api_key(GOOGLE_API_KEY):
-                update_env_file("GOOGLE_API_KEY", GOOGLE_API_KEY)
-                st.sidebar.success("✅ GOOGLE_API_KEY baru valid dan sudah disimpan ke .env.")
-                st.session_state["google_invalid"] = False
-            else:
-                st.sidebar.error("❌ GOOGLE_API_KEY masih tidak valid.")
+            update_env_file("GOOGLE_API_KEY", GOOGLE_API_KEY)
+            st.sidebar.success("✅ GOOGLE_API_KEY baru disimpan ke .env. Silakan refresh halaman untuk validasi.")
+            st.session_state["google_invalid"] = False   # hilangkan error setelah input
 
     if st.session_state["groq_invalid"]:
         if not GROQ_API_KEY:
             st.sidebar.warning("⚠️ GROQ_API_KEY belum diisi atau kosong.")
         else:
-            st.sidebar.error("❌ GROQ_API_KEY tidak valid atau sudah expired. Buat GROQ API KEY baru pada https://console.groq.com/keys dan copy paste")
+            st.sidebar.error("❌ GROQ_API_KEY tidak valid atau sudah expired.")
         GROQ_API_KEY_INPUT = st.sidebar.text_input(
             "Masukkan GROQ_API_KEY (Groq)", type="password", value=""
         )
         if GROQ_API_KEY_INPUT.strip():
             GROQ_API_KEY = GROQ_API_KEY_INPUT.strip()
-            if check_groq_api_key(GROQ_API_KEY):
-                update_env_file("GROQ_API_KEY", GROQ_API_KEY)
-                st.sidebar.success("✅ GROQ_API_KEY baru valid dan sudah disimpan ke .env.")
-                st.session_state["groq_invalid"] = False
-            else:
-                st.sidebar.error("❌ GROQ_API_KEY masih tidak valid.")
+            update_env_file("GROQ_API_KEY", GROQ_API_KEY)
+            st.sidebar.success("✅ GROQ_API_KEY baru disimpan ke .env. Silakan refresh halaman untuk validasi.")
+            st.session_state["groq_invalid"] = False
 
 # -------------------------
 # Stop jika tidak ada key valid
